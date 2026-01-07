@@ -1,0 +1,11 @@
+build
+dump*
+old
+.vscode
+.old
+sdkconfig
+sdkconfig.old
+esp32_toolchain.cmake
+*.a
+*.lock
+managed_components
