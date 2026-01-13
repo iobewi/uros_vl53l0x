@@ -1,6 +1,7 @@
 [submodule "components/micro_ros_espidf_component"]
 	path = components/micro_ros_espidf_component
 	url = https://github.com/micro-ROS/micro_ros_espidf_component.git
+	branch = jazzy
 [submodule "components/vl53l0x"]
 	path = components/vl53l0x
 	url = https://github.com/iobewi/ESP-IDF_VL53L0X.git
