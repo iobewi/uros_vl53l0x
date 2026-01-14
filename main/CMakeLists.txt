@@ -1,3 +1,16 @@
-idf_component_register(SRCS "app_main.c"
-                        INCLUDE_DIRS "."
-                        REQUIRES micro_ros_espidf_component driver)
+idf_component_register(
+                        SRCS
+                            "main.c"
+                            "uros_app.c"
+                            "scan_builder.c"
+                            "tof_provider.c"
+                        INCLUDE_DIRS
+                            "."
+                        REQUIRES 
+                          micro_ros_espidf_component 
+                          esp_driver_uart 
+                          esp_timer
+                          esp_usbcdc_logging 
+                          esp_usbcdc_transport
+                          vl53l0x
+                      ) 

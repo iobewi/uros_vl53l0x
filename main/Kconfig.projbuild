@@ -1,0 +1,26 @@
+menu "micro-ROS example-app settings"
+
+    config MICRO_ROS_APP_STACK
+        int "Stack the micro-ROS app (Bytes)"
+        default 16000
+        help
+        Stack size in Bytes of the micro-ROS app
+
+    config MICRO_ROS_APP_TASK_PRIO
+        int "Priority of the micro-ROS app"
+        default 5
+        help
+        Priority of micro-ros task higher value means higher priority
+        
+endmenu
+
+menu "ToF provider"
+
+config TOF_PROVIDER_MOCK
+    bool "Use mock ToF provider (simulation)"
+    default y
+    help
+        If enabled, the ToF sensors are simulated.
+        Disable to use real VL53L0X hardware.
+
+endmenu
