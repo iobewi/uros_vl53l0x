@@ -3,6 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -65,6 +66,18 @@ static rcl_publisher_t publisher;
 static sensor_msgs__msg__LaserScan scan_msg;
 static scan_config_t scan_cfg;
 
+static void scan_msg_set_timestamp(sensor_msgs__msg__LaserScan *msg)
+{
+    const int64_t now_ns = rmw_uros_epoch_nanos();
+    if (now_ns > 0) {
+        msg->header.stamp.sec = (int32_t)(now_ns / 1000000000LL);
+        msg->header.stamp.nanosec = (uint32_t)(now_ns % 1000000000LL);
+    } else {
+        msg->header.stamp.sec = 0;
+        msg->header.stamp.nanosec = 0;
+    }
+}
+
 static void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 {
     (void)last_call_time;
@@ -74,6 +87,7 @@ static void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
     tof_provider_snapshot(snap);
 
     scan_builder_fill(&scan_msg, &scan_cfg, snap, TOF_BIN_IDX);
+    scan_msg_set_timestamp(&scan_msg);
     RCSOFTCHECK(rcl_publish(&publisher, &scan_msg, NULL));
 
     static uint32_t div = 0;

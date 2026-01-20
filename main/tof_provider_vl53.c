@@ -134,7 +134,11 @@ void tof_provider_init(void)
     }
 
     ESP_LOGI(TAG, "Assign addresses (multi XSHUT)...");
-    ESP_ERROR_CHECK(vl53l0x_multi_assign_addresses(slots, TOF_COUNT, 10));
+    err = vl53l0x_multi_assign_addresses(slots, TOF_COUNT, 10);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Address assignment failed: %s", esp_err_to_name(err));
+        return;
+    }
 
     static vl53l0x_dev_t devs[TOF_COUNT];
     for (int i = 0; i < TOF_COUNT; i++) {
@@ -143,7 +147,11 @@ void tof_provider_init(void)
 
     ESP_LOGI(TAG, "Init %d devices...", TOF_COUNT);
     for (int i = 0; i < TOF_COUNT; i++) {
-        ESP_ERROR_CHECK(vl53l0x_init(&devs[i], TIMING_BUDGET_US));
+        err = vl53l0x_init(&devs[i], TIMING_BUDGET_US);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Init dev[%d] failed: %s", i, esp_err_to_name(err));
+            return;
+        }
 
         // Active l’IRQ data-ready sur INT_i
         err = vl53l0x_enable_gpio_ready(&devs[i], INT_PINS[i], true);
