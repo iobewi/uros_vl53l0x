@@ -9,7 +9,7 @@ set(PRIV_REQUIRES_LIST
 )
 
 if(CONFIG_MICRO_ROS_STATUS_LED_ENABLE)
-    list(APPEND PRIV_REQUIRES_LIST led_strip)
+    list(APPEND PRIV_REQUIRES_LIST esp_driver_led_strip)
 endif()
 
 idf_component_register(

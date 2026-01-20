@@ -5,7 +5,7 @@
 #include "freertos/task.h"
 
 #if CONFIG_MICRO_ROS_STATUS_LED_ENABLE
-#include "led_strip.h"
+#include "driver/led_strip.h"
 
 static const char *TAG = "LED_STATUS";
 
