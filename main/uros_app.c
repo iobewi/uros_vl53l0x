@@ -116,6 +116,7 @@ static void micro_ros_task(void *arg)
 
     if (!scan_builder_init(&scan_msg, &scan_cfg)) {
         ESP_LOGE(TAG_TASK, "scan_builder_init() failed (malloc?)");
+        scan_builder_deinit(&scan_msg);
         vTaskDelete(NULL);
     }
 
