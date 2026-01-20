@@ -41,6 +41,23 @@ bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cf
     return true;
 }
 
+void scan_builder_deinit(sensor_msgs__msg__LaserScan *msg)
+{
+    if (!msg) return;
+
+    if (msg->ranges.data) {
+        free(msg->ranges.data);
+    }
+
+    msg->ranges.data = NULL;
+    msg->ranges.size = 0;
+    msg->ranges.capacity = 0;
+
+    msg->intensities.data = NULL;
+    msg->intensities.size = 0;
+    msg->intensities.capacity = 0;
+}
+
 void scan_builder_fill(sensor_msgs__msg__LaserScan *msg,
                        const scan_config_t *cfg,
                        const tof_sample_t samples[TOF_COUNT],

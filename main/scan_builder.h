@@ -39,6 +39,17 @@ typedef struct {
 bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cfg);
 
 /**
+ * @brief Deinitialize a LaserScan message previously initialized by scan_builder_init().
+ *
+ * This function releases the ranges buffer and resets ranges/intensities fields
+ * to a safe empty state. Call it when the scan builder is no longer needed or
+ * before reinitializing.
+ *
+ * @param msg   Pointer to the LaserScan message to deinitialize.
+ */
+void scan_builder_deinit(sensor_msgs__msg__LaserScan *msg);
+
+/**
  * @brief Populate a LaserScan message from a snapshot of ToF samples,
  *        using a fixed bin index mapping.
  *
