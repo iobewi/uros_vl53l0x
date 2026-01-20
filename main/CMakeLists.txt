@@ -3,8 +3,7 @@ set(PRIV_REQUIRES_LIST
     esp_driver_uart
     esp_driver_rmt
     esp_timer
-    esp_usbcdc_logging
-    esp_usbcdc_transport
+    esp_usbcdc
     vl53l0x
 )
 
