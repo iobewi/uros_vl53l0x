@@ -20,7 +20,7 @@ menu "micro-ROS example-app settings"
 
     config MICRO_ROS_STATUS_LED_GPIO
         int "Status LED GPIO"
-        default 38
+        default 48
         depends on MICRO_ROS_STATUS_LED_ENABLE
         help
             GPIO number used for the SK68XXMINI-HS status LED on ESP32-S3-DevKitC-1.
