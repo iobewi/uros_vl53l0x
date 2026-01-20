@@ -88,5 +88,8 @@ static void mock_task(void *arg)
 void tof_provider_init(void)
 {
     ESP_LOGI(TAG, "Starting mock ToF provider task");
-    xTaskCreate(mock_task, "tof_mock", 4096, NULL, 5, NULL);
+    BaseType_t ok = xTaskCreate(mock_task, "tof_mock", 4096, NULL, 5, NULL);
+    if (ok != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create mock ToF task");
+    }
 }

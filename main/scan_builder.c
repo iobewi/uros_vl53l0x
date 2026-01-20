@@ -10,10 +10,15 @@ bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cf
 
     sensor_msgs__msg__LaserScan__init(msg);
 
-    // frame_id points to a constant string (no dynamic allocation)
-    msg->header.frame_id.data = (char*)cfg->frame_id;
-    msg->header.frame_id.size = strlen(cfg->frame_id);
-    msg->header.frame_id.capacity = msg->header.frame_id.size + 1;
+    const size_t frame_len = strlen(cfg->frame_id);
+    msg->header.frame_id.data = (char *)malloc(frame_len + 1);
+    if (!msg->header.frame_id.data) {
+        sensor_msgs__msg__LaserScan__fini(msg);
+        return false;
+    }
+    memcpy(msg->header.frame_id.data, cfg->frame_id, frame_len + 1);
+    msg->header.frame_id.size = frame_len;
+    msg->header.frame_id.capacity = frame_len + 1;
 
     msg->angle_min = cfg->angle_min;
     msg->angle_increment = cfg->angle_inc;
@@ -26,7 +31,10 @@ bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cf
     msg->scan_time = 0.0f;
 
     msg->ranges.data = (float*)malloc(sizeof(float) * (size_t)cfg->bins);
-    if (!msg->ranges.data) return false;
+    if (!msg->ranges.data) {
+        sensor_msgs__msg__LaserScan__fini(msg);
+        return false;
+    }
     msg->ranges.size = (size_t)cfg->bins;
     msg->ranges.capacity = (size_t)cfg->bins;
 
@@ -45,17 +53,7 @@ void scan_builder_deinit(sensor_msgs__msg__LaserScan *msg)
 {
     if (!msg) return;
 
-    if (msg->ranges.data) {
-        free(msg->ranges.data);
-    }
-
-    msg->ranges.data = NULL;
-    msg->ranges.size = 0;
-    msg->ranges.capacity = 0;
-
-    msg->intensities.data = NULL;
-    msg->intensities.size = 0;
-    msg->intensities.capacity = 0;
+    sensor_msgs__msg__LaserScan__fini(msg);
 }
 
 void scan_builder_fill(sensor_msgs__msg__LaserScan *msg,
