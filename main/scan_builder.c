@@ -4,26 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
-static inline float wrap_to_pi(float a)
-{
-    while (a > (float)M_PI)  a -= 2.0f * (float)M_PI;
-    while (a < -(float)M_PI) a += 2.0f * (float)M_PI;
-    return a;
-}
-
-static inline int angle_to_index(float angle_rad, float angle_min, float angle_inc, int bins)
-{
-    float a = wrap_to_pi(angle_rad);
-    int idx = (int)lroundf((a - angle_min) / angle_inc);
-    if (idx < 0) idx = 0;
-    if (idx >= bins) idx = bins - 1;
-    return idx;
-}
-
 bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cfg)
 {
     if (!msg || !cfg || !cfg->frame_id || cfg->bins <= 0) return false;
@@ -45,18 +25,15 @@ bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cf
     msg->time_increment = 0.0f;
     msg->scan_time = 0.0f;
 
-    // Allocate ranges once
     msg->ranges.data = (float*)malloc(sizeof(float) * (size_t)cfg->bins);
     if (!msg->ranges.data) return false;
     msg->ranges.size = (size_t)cfg->bins;
     msg->ranges.capacity = (size_t)cfg->bins;
 
-    // No intensities
     msg->intensities.data = NULL;
     msg->intensities.size = 0;
     msg->intensities.capacity = 0;
 
-    // Initialize to NAN
     for (int i = 0; i < cfg->bins; i++) {
         msg->ranges.data[i] = NAN;
     }
@@ -66,29 +43,27 @@ bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cf
 
 void scan_builder_fill(sensor_msgs__msg__LaserScan *msg,
                        const scan_config_t *cfg,
-                       const tof_sample_t samples[TOF_COUNT])
+                       const tof_sample_t samples[TOF_COUNT],
+                       const uint8_t idx_map[TOF_COUNT])
 {
-    if (!msg || !cfg || !samples || !cfg->tof_angles_rad) return;
+    if (!msg || !cfg || !samples || !idx_map || cfg->bins <= 0) return;
 
-    // Reset all bins to NAN
+    // Clear scan
     for (int i = 0; i < cfg->bins; i++) {
         msg->ranges.data[i] = NAN;
     }
 
-    // Place the TOF_COUNT samples into their bins
-    for (int i = 0; i < TOF_COUNT; i++) {
-        const int idx = angle_to_index(cfg->tof_angles_rad[i], cfg->angle_min, cfg->angle_inc, cfg->bins);
+    for (int s = 0; s < TOF_COUNT; s++) {
+        const int idx = (int)idx_map[s];
+        if ((unsigned)idx >= (unsigned)cfg->bins) continue;
 
-        if (!samples[i].valid || samples[i].status != 0 || isnan(samples[i].range_m)) {
-            msg->ranges.data[idx] = NAN;
-            continue;
+        if (!samples[s].valid || samples[s].status != 0 || isnan(samples[s].range_m)) {
+            continue; // leave NAN
         }
 
-        const float r = samples[i].range_m;
-        if (r < cfg->range_min || r > cfg->range_max) {
-            msg->ranges.data[idx] = NAN;
-        } else {
-            msg->ranges.data[idx] = r;
-        }
+        const float r = samples[s].range_m;
+        if (r < cfg->range_min || r > cfg->range_max) continue;
+
+        msg->ranges.data[idx] = r;
     }
 }

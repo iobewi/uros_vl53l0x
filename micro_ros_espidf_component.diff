@@ -1,0 +1,156 @@
+diff --git a/colcon.meta b/colcon.meta
+index ce2992a..51e0d78 100644
+--- a/colcon.meta
++++ b/colcon.meta
+@@ -24,18 +24,18 @@
+         "microxrcedds_client": {
+             "cmake-args": [
+                 "-DUCLIENT_PIC=OFF",
+-                "-DUCLIENT_PROFILE_DISCOVERY=ON",
+-                "-DUCLIENT_PROFILE_UDP=ON",
+-                "-DUCLIENT_PROFILE_CUSTOM_TRANSPORT=ON",
+-                "-DUCLIENT_PROFILE_SERIAL=OFF",
++                "-DUCLIENT_PROFILE_DISCOVERY=OFF",
++                "-DUCLIENT_PROFILE_UDP=OFF",
+                 "-DUCLIENT_PROFILE_TCP=OFF",
++                "-DUCLIENT_PROFILE_SERIAL=OFF",
++                "-DUCLIENT_PROFILE_CUSTOM_TRANSPORT=ON",
+                 "-DUCLIENT_MIN_HEARTBEAT_TIME_INTERVAL=1"
+             ]
+         },
+         "rmw_microxrcedds": {
+             "cmake-args": [
+                 "-DRMW_UXRCE_XML_BUFFER_LENGTH=400",
+-                "-DRMW_UXRCE_TRANSPORT=udp",
++                "-DRMW_UXRCE_TRANSPORT=custom",
+                 "-DRMW_UXRCE_MAX_NODES=1",
+                 "-DRMW_UXRCE_MAX_PUBLISHERS=2",
+                 "-DRMW_UXRCE_MAX_SUBSCRIPTIONS=2",
+diff --git a/libmicroros.mk b/libmicroros.mk
+index 2b1d6c3..349410f 100644
+--- a/libmicroros.mk
++++ b/libmicroros.mk
+@@ -10,8 +10,9 @@ else
+ 	BUILD_TYPE = Release
+ endif
+ 
+-CFLAGS_INTERNAL := $(X_CFLAGS) -ffunction-sections -fdata-sections
+-CXXFLAGS_INTERNAL := $(X_CXXFLAGS) -ffunction-sections -fdata-sections
++# Important pour Xtensa (ESP32 / ESP32-S3 ...) afin d'éviter les "call8 out of range"
++CFLAGS_INTERNAL := $(X_CFLAGS) -ffunction-sections -fdata-sections -mlongcalls -mtext-section-literals
++CXXFLAGS_INTERNAL := $(X_CXXFLAGS) -ffunction-sections -fdata-sections -mlongcalls -mtext-section-literals
+ 
+ all: $(EXTENSIONS_DIR)/libmicroros.a
+ 
+@@ -86,7 +87,6 @@ $(EXTENSIONS_DIR)/micro_ros_src/src:
+ 	cp -rf $(EXTRA_ROS_PACKAGES) src/extra_packages || :; \
+ 	test -f src/extra_packages/extra_packages.repos && cd src/extra_packages && vcs import --input extra_packages.repos || :;
+ 
+-
+ $(EXTENSIONS_DIR)/micro_ros_src/install: $(EXTENSIONS_DIR)/esp32_toolchain.cmake $(EXTENSIONS_DIR)/micro_ros_dev/install $(EXTENSIONS_DIR)/micro_ros_src/src
+ 	cd $(UROS_DIR); \
+ 	unset AMENT_PREFIX_PATH; \
+@@ -105,48 +105,46 @@ $(EXTENSIONS_DIR)/micro_ros_src/install: $(EXTENSIONS_DIR)/esp32_toolchain.cmake
+ 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+ 		-DCMAKE_TOOLCHAIN_FILE=$(EXTENSIONS_DIR)/esp32_toolchain.cmake \
+ 		-DCMAKE_VERBOSE_MAKEFILE=OFF \
+-        -DIDF_INCLUDES='${IDF_INCLUDES}' \
++		-DIDF_INCLUDES='${IDF_INCLUDES}' \
+ 		-DCMAKE_C_STANDARD=$(C_STANDARD) \
+-		-DUCLIENT_C_STANDARD=$(C_STANDARD);
++		-DUCLIENT_C_STANDARD=$(C_STANDARD) \
++		-DCMAKE_C_FLAGS="$(CFLAGS_INTERNAL)" \
++		-DCMAKE_CXX_FLAGS="$(CXXFLAGS_INTERNAL)" \
++		-DCMAKE_ASM_FLAGS="$(CFLAGS_INTERNAL)" \
++		-DCMAKE_EXE_LINKER_FLAGS="$(CFLAGS_INTERNAL)";
+ 
+ patch_atomic:$(EXTENSIONS_DIR)/micro_ros_src/install
+ # Workaround https://github.com/micro-ROS/micro_ros_espidf_component/issues/18
+-ifeq ($(IDF_TARGET),$(filter $(IDF_TARGET),esp32s2 esp32c3 esp32c6))
+-		echo $(UROS_DIR)/atomic_workaround; \
+-		mkdir $(UROS_DIR)/atomic_workaround; cd $(UROS_DIR)/atomic_workaround; \
++# IDF >= 5 (et particulièrement IDF 6) fournit déjà __atomic_*_8 via esp_libc, donc on retire l'objet rcutils correspondant.
++ifeq ($(IDF_TARGET),$(filter $(IDF_TARGET),esp32s2 esp32s3 esp32c3 esp32c6))
++		echo "Patching librcutils.a to remove atomic_64bits object for $(IDF_TARGET)"; \
++		rm -rf $(UROS_DIR)/atomic_workaround; \
++		mkdir -p $(UROS_DIR)/atomic_workaround; \
++		cd $(UROS_DIR)/atomic_workaround; \
+ 		$(X_AR) x $(UROS_DIR)/install/lib/librcutils.a; \
+-		$(X_STRIP) atomic_64bits.c.obj --strip-symbol=__atomic_fetch_add_8; \
+-		if [ $(IDF_VERSION_MAJOR) -ge 4 ] && [ $(IDF_VERSION_MINOR) -ge 3 ]; then \
+-			$(X_STRIP) atomic_64bits.c.obj --strip-symbol=__atomic_load_8; \
+-			$(X_STRIP) atomic_64bits.c.obj --strip-symbol=__atomic_store_8; \
+-			$(X_STRIP) atomic_64bits.c.obj --strip-symbol=__atomic_exchange_8; \
+-		fi; \
+-		if [ $(IDF_VERSION_MAJOR) -ge 4 ] && [ $(IDF_VERSION_MINOR) -ge 4 ]; then \
+-			$(X_STRIP) atomic_64bits.c.obj --strip-symbol=__atomic_load_8; \
+-			$(X_STRIP) atomic_64bits.c.obj --strip-symbol=__atomic_store_8; \
++		atomic_obj="$$(ls -1 atomic_64bits.c.obj atomic_64bits.c.o 2>/dev/null | head -n 1)"; \
++		if [ -n "$$atomic_obj" ]; then \
++			echo "Removing $$atomic_obj from librcutils.a"; \
++			$(X_AR) d $(UROS_DIR)/install/lib/librcutils.a $$atomic_obj || true; \
++		else \
++			echo "No atomic_64bits object found in extracted objects (ok)."; \
+ 		fi; \
+-		if [ $(IDF_VERSION_MAJOR) -ge 5 ] && [ $(IDF_VERSION_MINOR) -ge 0 ]; then \
+-			$(X_STRIP) atomic_64bits.c.obj --strip-symbol=__atomic_load_8; \
+-			$(X_STRIP) atomic_64bits.c.obj --strip-symbol=__atomic_store_8; \
+-			$(X_STRIP) atomic_64bits.c.obj --strip-symbol=__atomic_exchange_8; \
+-		fi; \
+-		$(X_AR) rc -s librcutils.a *.obj; \
+-		cp -rf librcutils.a  $(UROS_DIR)/install/lib/librcutils.a; \
+ 		cd ..; \
+ 		rm -rf $(UROS_DIR)/atomic_workaround;
+ endif
+ ifeq ($(IDF_TARGET),$(filter $(IDF_TARGET),esp32))
+-		echo $(UROS_DIR)/atomic_workaround; \
+-		mkdir $(UROS_DIR)/atomic_workaround; cd $(UROS_DIR)/atomic_workaround; \
++		echo "Patching librcutils.a to remove atomic_64bits object for $(IDF_TARGET)"; \
++		rm -rf $(UROS_DIR)/atomic_workaround; \
++		mkdir -p $(UROS_DIR)/atomic_workaround; \
++		cd $(UROS_DIR)/atomic_workaround; \
+ 		$(X_AR) x $(UROS_DIR)/install/lib/librcutils.a; \
+-		$(X_STRIP) atomic_64bits.c.obj --strip-symbol=__atomic_fetch_add_8; \
+-		if [ $(IDF_VERSION_MAJOR) -ge 5 ] && [ $(IDF_VERSION_MINOR) -ge 3 ]; then \
+-			$(X_STRIP) atomic_64bits.c.obj --strip-symbol=__atomic_load_8; \
+-			$(X_STRIP) atomic_64bits.c.obj --strip-symbol=__atomic_store_8; \
+-			$(X_STRIP) atomic_64bits.c.obj --strip-symbol=__atomic_exchange_8; \
++		atomic_obj="$$(ls -1 atomic_64bits.c.obj atomic_64bits.c.o 2>/dev/null | head -n 1)"; \
++		if [ -n "$$atomic_obj" ]; then \
++			echo "Removing $$atomic_obj from librcutils.a"; \
++			$(X_AR) d $(UROS_DIR)/install/lib/librcutils.a $$atomic_obj || true; \
++		else \
++			echo "No atomic_64bits object found in extracted objects (ok)."; \
+ 		fi; \
+-		$(X_AR) rc -s librcutils.a *.obj; \
+-		cp -rf librcutils.a  $(UROS_DIR)/install/lib/librcutils.a; \
+ 		cd ..; \
+ 		rm -rf $(UROS_DIR)/atomic_workaround;
+ endif
+@@ -161,6 +159,12 @@ $(EXTENSIONS_DIR)/libmicroros.a: $(EXTENSIONS_DIR)/micro_ros_src/install patch_a
+ 		done; \
+ 		cd ..; rm -rf $$folder; \
+ 	done ; \
+-	$(X_AR) rc -s libmicroros.a *.obj; cp libmicroros.a $(EXTENSIONS_DIR); \
++	objs=$$(ls -1 *.o *.obj 2>/dev/null || true); \
++	objs=$$(echo "$$objs" | tr ' ' '\n' | grep -v '^.*atomic_64bits\.c\.' | tr '\n' ' '); \
++	if [ -z "$$objs" ]; then \
++		echo "ERROR: no objects extracted from micro-ROS static libs. libmicroros.a not generated."; \
++		exit 2; \
++	fi; \
++	$(X_AR) rc -s libmicroros.a $$objs; cp libmicroros.a $(EXTENSIONS_DIR); \
+ 	cd ..; rm -rf libmicroros; \
+ 	cp -R $(UROS_DIR)/install/include $(EXTENSIONS_DIR)/include;
+diff --git a/network_interfaces/uros_wlan_netif.c b/network_interfaces/uros_wlan_netif.c
+index b2a8460..bb37e19 100644
+--- a/network_interfaces/uros_wlan_netif.c
++++ b/network_interfaces/uros_wlan_netif.c
+@@ -85,7 +85,7 @@ static void wifi_init_sta(void)
+         },
+     };
+     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
+-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
++    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
+     ESP_ERROR_CHECK(esp_wifi_start() );
+ 
+     ESP_LOGI(TAG, "wifi_init_sta finished.");
