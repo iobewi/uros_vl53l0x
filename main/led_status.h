@@ -2,6 +2,7 @@
 #define LED_STATUS_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef enum {
     LED_STATUS_OFF = 0,

@@ -5,12 +5,9 @@ set(PRIV_REQUIRES_LIST
     esp_timer
     esp_usbcdc_logging
     esp_usbcdc_transport
+    led_strip
     vl53l0x
 )
-
-if(CONFIG_MICRO_ROS_STATUS_LED_ENABLE)
-    list(APPEND PRIV_REQUIRES_LIST led_strip)
-endif()
 
 idf_component_register(
     SRCS
