@@ -2,6 +2,7 @@ idf_component_register(
                         SRCS
                             "main.c"
                             "uros_app.c"
+                            "led_status.c"
                             "scan_builder.c"
                             "tof_provider.c"
                         INCLUDE_DIRS
@@ -9,6 +10,8 @@ idf_component_register(
                         REQUIRES 
                           micro_ros_espidf_component 
                           esp_driver_uart 
+                          esp_driver_rmt
+                          led_strip
                           esp_timer
                           esp_usbcdc_logging 
                           esp_usbcdc_transport
