@@ -11,6 +11,27 @@ menu "micro-ROS example-app settings"
         default 5
         help
         Priority of micro-ros task higher value means higher priority
+
+    config MICRO_ROS_STATUS_LED_ENABLE
+        bool "Enable status LED for micro-ROS state"
+        default y
+        help
+            Use a GPIO-driven LED to indicate micro-ROS connection status.
+
+    config MICRO_ROS_STATUS_LED_GPIO
+        int "Status LED GPIO"
+        default 38
+        depends on MICRO_ROS_STATUS_LED_ENABLE
+        help
+            GPIO number used for the SK68XXMINI-HS status LED on ESP32-S3-DevKitC-1.
+
+    config MICRO_ROS_STATUS_LED_BRIGHTNESS
+        int "Status LED brightness (0-255)"
+        range 0 255
+        default 32
+        depends on MICRO_ROS_STATUS_LED_ENABLE
+        help
+            Brightness scaling for the RGB status LED.
         
 endmenu
 

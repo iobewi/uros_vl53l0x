@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <math.h>
+#include <stdbool.h>
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -42,10 +43,13 @@ static const uint8_t TOF_BIN_IDX[TOF_COUNT] = {
     5, 13, 29, 37, 47, 55, 71, 79
 };
 
+#include "led_status.h"
+
 #define RCCHECK(fn) {                                                                                \
     rcl_ret_t temp_rc = fn;                                                                          \
     if (temp_rc != RCL_RET_OK) {                                                                     \
         ESP_LOGE("RCCHECK", "Failed status on line %d: %d. Aborting.", __LINE__, (int)temp_rc);     \
+        led_status_set_state(LED_STATUS_ERROR);                                                      \
         vTaskDelete(NULL);                                                                           \
     }                                                                                                \
 }
@@ -97,6 +101,7 @@ static void micro_ros_task(void *arg)
     RCCHECK(rcl_init_options_set_domain_id(&init_options, DOMAIN_ID));
 
     ESP_LOGI(TAG_TASK, "Waiting for micro-ROS agent...");
+    led_status_set_state(LED_STATUS_WAITING);
     while (rmw_uros_ping_agent(100, 5) != RMW_RET_OK) {
         vTaskDelay(pdMS_TO_TICKS(200));
     }
@@ -116,6 +121,7 @@ static void micro_ros_task(void *arg)
 
     if (!scan_builder_init(&scan_msg, &scan_cfg)) {
         ESP_LOGE(TAG_TASK, "scan_builder_init() failed (malloc?)");
+        led_status_set_state(LED_STATUS_ERROR);
         scan_builder_deinit(&scan_msg);
         vTaskDelete(NULL);
     }
@@ -134,6 +140,7 @@ static void micro_ros_task(void *arg)
 
     ESP_LOGI(TAG_TASK, "micro-ROS up: node=%s topic=%s period=%dms",
              NODE_NAME, TOPIC_NAME, TIMER_PERIOD_MS);
+    led_status_set_state(LED_STATUS_CONNECTED);
 
     while (true) {
         rcl_ret_t spin_ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(50));
@@ -146,6 +153,11 @@ static void micro_ros_task(void *arg)
 
 bool uros_app_start(void)
 {
+    if (!led_status_start()) {
+        ESP_LOGE(TAG_TASK, "Failed to start status LED task");
+        return false;
+    }
+
     TaskHandle_t task_handle = NULL;
 
     BaseType_t ok = xTaskCreatePinnedToCore(
