@@ -171,6 +171,7 @@ bool uros_app_start(void)
         ESP_LOGE(TAG_TASK, "Failed to start status LED task");
         return false;
     }
+    led_status_set_state(LED_STATUS_WAITING);
 
     TaskHandle_t task_handle = NULL;
 
