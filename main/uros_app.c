@@ -167,6 +167,9 @@ static void micro_ros_task(void *arg)
 
 bool uros_app_start(void)
 {
+#if !CONFIG_MICRO_ROS_STATUS_LED_ENABLE
+    ESP_LOGW(TAG_TASK, "Status LED disabled (CONFIG_MICRO_ROS_STATUS_LED_ENABLE=n)");
+#endif
     if (!led_status_start()) {
         ESP_LOGE(TAG_TASK, "Failed to start status LED task");
         return false;

@@ -111,6 +111,9 @@ bool led_status_start(void)
         ESP_LOGE(TAG, "Failed to init LED strip: %s", esp_err_to_name(err));
         return false;
     }
+    ESP_LOGI(TAG, "Status LED ready on GPIO %d (brightness=%d)",
+             CONFIG_MICRO_ROS_STATUS_LED_GPIO,
+             CONFIG_MICRO_ROS_STATUS_LED_BRIGHTNESS);
 
     BaseType_t led_ok = xTaskCreate(
         led_status_task,
