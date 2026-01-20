@@ -1,8 +1,13 @@
 #include "esp_usbcdc_logging.h"
 
-// Initialize USB-CDC logging
-esp_err_t esp_usbcdc_logging_init(void)
+static esp_err_t esp_usbcdc_tinyusb_init_once(void)
 {
+    static bool tinyusb_initialized = false;
+
+    if (tinyusb_initialized) {
+        return ESP_OK;
+    }
+
     const tinyusb_config_t tinyusb_config = {
         .descriptor = NULL,
         .string_descriptor = NULL,
@@ -11,6 +16,18 @@ esp_err_t esp_usbcdc_logging_init(void)
     };
 
     esp_err_t ret = tinyusb_driver_install(&tinyusb_config);
+
+    if (ret == ESP_OK) {
+        tinyusb_initialized = true;
+    }
+
+    return ret;
+}
+
+// Initialize USB-CDC logging
+esp_err_t esp_usbcdc_logging_init(void)
+{
+    esp_err_t ret = esp_usbcdc_tinyusb_init_once();
 
     if (ret == ESP_ERR_INVALID_ARG || ret == ESP_FAIL) {
         return ret;
