@@ -82,6 +82,9 @@ static sensor_msgs__msg__LaserScan scan_msg;
 static scan_config_t scan_cfg;
 static volatile uint32_t publish_failures = 0;
 static volatile bool publish_error_burst = false;
+static uint32_t publish_backoff_cycles = 0;
+
+#define PUBLISH_BACKOFF_MAX_CYCLES 5U
 
 static int max_bin_index(void)
 {
@@ -111,14 +114,23 @@ static void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
     (void)last_call_time;
     if (timer == NULL) return;
 
+    if (publish_backoff_cycles > 0) {
+        publish_backoff_cycles--;
+        return;
+    }
+
     tof_sample_t snap[TOF_COUNT];
     tof_provider_snapshot(snap);
 
     scan_builder_fill(&scan_msg, &scan_cfg, snap, TOF_BIN_IDX);
     scan_msg_set_timestamp(&scan_msg);
     rcl_ret_t pub_rc = rcl_publish(&publisher, &scan_msg, NULL);
+    bool publish_ok = (pub_rc == RCL_RET_OK);
     if (pub_rc != RCL_RET_OK) {
         publish_failures++;
+        if (publish_backoff_cycles < PUBLISH_BACKOFF_MAX_CYCLES) {
+            publish_backoff_cycles++;
+        }
         if ((publish_failures % 50) == 0) {
             rcl_error_string_t err = rcl_get_error_string();
             ESP_LOGW("RCSOFTCHECK", "rcl_publish() failed %u times (last=%d, reason=%s)",
@@ -132,10 +144,11 @@ static void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
     } else if (publish_failures > 0) {
         publish_failures = 0;
         publish_error_burst = false;
+        publish_backoff_cycles = 0;
     }
 
     static uint32_t div = 0;
-    if ((div++ % 10) == 0) {
+    if (publish_ok && (div++ % 10) == 0) {
         ESP_LOGI(TAG_CB, "Published %s (%d bins)", CONFIG_MICRO_ROS_TOPIC_NAME, N_BINS);
     }
 }
