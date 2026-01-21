@@ -129,6 +129,7 @@ static void micro_ros_task(void *arg)
         bool executor_ready = false;
         bool timer_ready = false;
         bool init_options_ready = false;
+        bool context_ready = false;
 
         rcl_allocator_t allocator = rcl_get_default_allocator();
         publisher = rcl_get_zero_initialized_publisher();
@@ -149,6 +150,7 @@ static void micro_ros_task(void *arg)
         init_options_ready = true;
         RCCHECK_GOTO(rcl_init_options_set_domain_id(&init_options, CONFIG_MICRO_ROS_DOMAIN_ID), cleanup);
         RCCHECK_GOTO(rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator), cleanup);
+        context_ready = true;
 
         rcl_node_options_t node_ops = rcl_node_get_default_options();
         RCCHECK_GOTO(rclc_node_init_with_options(&node, CONFIG_MICRO_ROS_NODE_NAME, "", &support, &node_ops), cleanup);
@@ -235,9 +237,17 @@ cleanup:
                 ESP_LOGW(TAG_TASK, "rcl_node_fini() failed: %d", (int)rc);
             }
         }
-        rc = rclc_support_fini(&support);
-        if (rc != RCL_RET_OK) {
-            ESP_LOGW(TAG_TASK, "rclc_support_fini() failed: %d", (int)rc);
+        if (context_ready) {
+            rc = rcl_shutdown(&support.context);
+            if (rc != RCL_RET_OK) {
+                ESP_LOGW(TAG_TASK, "rcl_shutdown() failed: %d", (int)rc);
+            }
+        }
+        if (context_ready) {
+            rc = rclc_support_fini(&support);
+            if (rc != RCL_RET_OK) {
+                ESP_LOGW(TAG_TASK, "rclc_support_fini() failed: %d", (int)rc);
+            }
         }
         if (init_options_ready) {
             rc = rcl_init_options_fini(&init_options);
