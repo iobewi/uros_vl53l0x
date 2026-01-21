@@ -131,6 +131,7 @@ static void micro_ros_task(void *arg)
         bool init_options_ready = false;
 
         rcl_allocator_t allocator = rcl_get_default_allocator();
+        publisher = rcl_get_zero_initialized_publisher();
         rclc_support_t support = {0};
         rcl_node_t node = rcl_get_zero_initialized_node();
         rclc_executor_t executor = rclc_executor_get_zero_initialized_executor();
