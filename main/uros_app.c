@@ -16,6 +16,7 @@
 #include <rclc/executor.h>
 #include <rclc/rclc.h>
 
+#include <rmw/qos_profiles.h>
 #include <rmw_microros/rmw_microros.h>
 #include <sensor_msgs/msg/laser_scan.h>
 
@@ -251,13 +252,20 @@ static void micro_ros_task(void *arg)
         node_ready = true;
 
         ESP_LOGI(TAG_TASK, "Creating publisher '%s'...", CONFIG_MICRO_ROS_TOPIC_NAME);
+        // LaserScan QoS: BEST_EFFORT + KEEP_LAST(depth=1) + VOLATILE to avoid XRCE serial backpressure.
+        rmw_qos_profile_t scan_qos = rmw_qos_profile_default;
+        scan_qos.history = RMW_QOS_POLICY_HISTORY_KEEP_LAST;
+        scan_qos.depth = 1;
+        scan_qos.reliability = RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
+        scan_qos.durability = RMW_QOS_POLICY_DURABILITY_VOLATILE;
         const int max_pub_attempts = 5;
         for (int attempt = 1; attempt <= max_pub_attempts; attempt++) {
-            rc = rclc_publisher_init_default(
+            rc = rclc_publisher_init(
                 &publisher,
                 &node,
                 ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, LaserScan),
-                CONFIG_MICRO_ROS_TOPIC_NAME);
+                CONFIG_MICRO_ROS_TOPIC_NAME,
+                &scan_qos);
             if (rc == RCL_RET_OK) {
                 publisher_ready = true;
                 break;
