@@ -152,7 +152,7 @@ menu "ToF hardware configuration"
         default 2
 
     config TOF_0_ADDR_7B
-        int "ToF 0 I2C address (7-bit)"
+        hex "ToF 0 I2C address (7-bit)"
         default 0x2A
 
     config TOF_0_BIN_IDX
@@ -170,7 +170,7 @@ menu "ToF hardware configuration"
         default 4
 
     config TOF_1_ADDR_7B
-        int "ToF 1 I2C address (7-bit)"
+        hex "ToF 1 I2C address (7-bit)"
         default 0x2B
 
     config TOF_1_BIN_IDX
@@ -190,7 +190,7 @@ menu "ToF hardware configuration"
         default 14
 
     config TOF_2_ADDR_7B
-        int "ToF 2 I2C address (7-bit)"
+        hex "ToF 2 I2C address (7-bit)"
         default 0x2C
 
     config TOF_2_BIN_IDX
@@ -210,7 +210,7 @@ menu "ToF hardware configuration"
         default 15
 
     config TOF_3_ADDR_7B
-        int "ToF 3 I2C address (7-bit)"
+        hex "ToF 3 I2C address (7-bit)"
         default 0x2D
 
     config TOF_3_BIN_IDX
@@ -230,7 +230,7 @@ menu "ToF hardware configuration"
         default 16
 
     config TOF_4_ADDR_7B
-        int "ToF 4 I2C address (7-bit)"
+        hex "ToF 4 I2C address (7-bit)"
         default 0x2E
 
     config TOF_4_BIN_IDX
@@ -250,7 +250,7 @@ menu "ToF hardware configuration"
         default 17
 
     config TOF_5_ADDR_7B
-        int "ToF 5 I2C address (7-bit)"
+        hex "ToF 5 I2C address (7-bit)"
         default 0x2F
 
     config TOF_5_BIN_IDX
@@ -270,7 +270,7 @@ menu "ToF hardware configuration"
         default 18
 
     config TOF_6_ADDR_7B
-        int "ToF 6 I2C address (7-bit)"
+        hex "ToF 6 I2C address (7-bit)"
         default 0x30
 
     config TOF_6_BIN_IDX
@@ -290,7 +290,7 @@ menu "ToF hardware configuration"
         default 19
 
     config TOF_7_ADDR_7B
-        int "ToF 7 I2C address (7-bit)"
+        hex "ToF 7 I2C address (7-bit)"
         default 0x31
 
     config TOF_7_BIN_IDX
@@ -310,7 +310,7 @@ menu "ToF hardware configuration"
         default 0
 
     config TOF_8_ADDR_7B
-        int "ToF 8 I2C address (7-bit)"
+        hex "ToF 8 I2C address (7-bit)"
         default 0x32
 
     config TOF_8_BIN_IDX
@@ -330,7 +330,7 @@ menu "ToF hardware configuration"
         default 0
 
     config TOF_9_ADDR_7B
-        int "ToF 9 I2C address (7-bit)"
+        hex "ToF 9 I2C address (7-bit)"
         default 0x33
 
     config TOF_9_BIN_IDX
@@ -350,7 +350,7 @@ menu "ToF hardware configuration"
         default 0
 
     config TOF_10_ADDR_7B
-        int "ToF 10 I2C address (7-bit)"
+        hex "ToF 10 I2C address (7-bit)"
         default 0x34
 
     config TOF_10_BIN_IDX
@@ -370,7 +370,7 @@ menu "ToF hardware configuration"
         default 0
 
     config TOF_11_ADDR_7B
-        int "ToF 11 I2C address (7-bit)"
+        hex "ToF 11 I2C address (7-bit)"
         default 0x35
 
     config TOF_11_BIN_IDX
@@ -390,7 +390,7 @@ menu "ToF hardware configuration"
         default 0
 
     config TOF_12_ADDR_7B
-        int "ToF 12 I2C address (7-bit)"
+        hex "ToF 12 I2C address (7-bit)"
         default 0x36
 
     config TOF_12_BIN_IDX
@@ -410,7 +410,7 @@ menu "ToF hardware configuration"
         default 0
 
     config TOF_13_ADDR_7B
-        int "ToF 13 I2C address (7-bit)"
+        hex "ToF 13 I2C address (7-bit)"
         default 0x37
 
     config TOF_13_BIN_IDX
@@ -430,7 +430,7 @@ menu "ToF hardware configuration"
         default 0
 
     config TOF_14_ADDR_7B
-        int "ToF 14 I2C address (7-bit)"
+        hex "ToF 14 I2C address (7-bit)"
         default 0x38
 
     config TOF_14_BIN_IDX
@@ -450,7 +450,7 @@ menu "ToF hardware configuration"
         default 0
 
     config TOF_15_ADDR_7B
-        int "ToF 15 I2C address (7-bit)"
+        hex "ToF 15 I2C address (7-bit)"
         default 0x39
 
     config TOF_15_BIN_IDX
