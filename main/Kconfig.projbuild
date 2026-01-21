@@ -36,6 +36,14 @@ menu "micro-ROS application settings"
         help
             Publish period for the LaserScan timer.
 
+    config MICRO_ROS_QOS_RELIABLE
+        bool "Use RELIABLE QoS for LaserScan publisher"
+        default n
+        help
+            Publish LaserScan with RELIABLE QoS instead of BEST_EFFORT.
+            Enable only if the transport can handle acknowledgements without
+            causing XRCE backpressure.
+
     config MICRO_ROS_SCAN_BINS
         int "LaserScan number of bins"
         default 84
