@@ -48,6 +48,13 @@ menu "micro-ROS application settings"
         help
             Frame id used in the LaserScan header.
 
+    config MICRO_ROS_SCAN_ALLOC_GUARD
+        bool "Enable allocation guard for scan/publish loop"
+        default n
+        help
+            Capture heap stats before/after scan_builder_fill() and publish to
+            detect unexpected allocations on the periodic path.
+
     config MICRO_ROS_STATUS_LED_ENABLE
         bool "Enable status LED for micro-ROS state"
         default y
