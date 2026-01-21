@@ -36,6 +36,29 @@ menu "micro-ROS application settings"
         help
             Publish period for the LaserScan timer.
 
+    config MICRO_ROS_AGENT_PING_ENABLE
+        bool "Enable micro-ROS agent ping monitoring"
+        default y
+        help
+            Periodically ping the micro-ROS agent to detect disconnects.
+
+    config MICRO_ROS_PING_ON_PUBLISH_ERRORS
+        bool "Ping agent when publish errors accumulate"
+        default y
+        depends on !MICRO_ROS_AGENT_PING_ENABLE
+        help
+            When periodic ping is disabled, perform a ping when repeated
+            publish errors occur, and restart the session if the agent
+            cannot be reached.
+
+    config MICRO_ROS_PUBLISH_FAIL_PING_THRESHOLD
+        int "Publish error threshold before ping"
+        default 50
+        depends on MICRO_ROS_PING_ON_PUBLISH_ERRORS
+        help
+            Number of consecutive publish failures before triggering an
+            agent ping check.
+
     config MICRO_ROS_SCAN_BINS
         int "LaserScan number of bins"
         default 84
