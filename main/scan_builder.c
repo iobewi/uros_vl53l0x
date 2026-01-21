@@ -62,6 +62,7 @@ void scan_builder_fill(sensor_msgs__msg__LaserScan *msg,
                        const uint8_t idx_map[TOF_COUNT])
 {
     if (!msg || !cfg || !samples || !idx_map || cfg->bins <= 0) return;
+    if (!msg->ranges.data || msg->ranges.capacity < (size_t)cfg->bins) return;
 
     // Clear scan
     for (int i = 0; i < cfg->bins; i++) {
