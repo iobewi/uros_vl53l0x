@@ -42,37 +42,52 @@ static const uint8_t ADDR_7B[TOF_COUNT] = {
 #define GPIO_READY_TIMEOUT_MS 1000
 // ---------------------------------------
 
-// État partagé (identique au mock)
-static tof_sample_t g_tof[TOF_COUNT];
+// État partagé (double buffer).
+// Les writers ne modifient jamais le buffer "actif". Ils écrivent dans le buffer
+// inactif, puis publient l’index actif de façon atomique. Le snapshot lit
+// uniquement le buffer actif sans verrou (pas de blocage dans le callback timer).
+static tof_sample_t g_tof_buffers[2][TOF_COUNT];
+static volatile uint32_t g_tof_active_index = 0;
 static portMUX_TYPE g_tof_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static inline void update_one(int i, bool valid, uint8_t status, float range_m)
 {
     portENTER_CRITICAL(&g_tof_mux);
-    g_tof[i].valid = valid;
-    g_tof[i].status = status;
-    g_tof[i].range_m = range_m;
-    g_tof[i].seq++;
+    uint32_t active = __atomic_load_n(&g_tof_active_index, __ATOMIC_RELAXED);
+    uint32_t back = 1u - active;
+    for (int j = 0; j < TOF_COUNT; j++) {
+        g_tof_buffers[back][j] = g_tof_buffers[active][j];
+    }
+    g_tof_buffers[back][i].valid = valid;
+    g_tof_buffers[back][i].status = status;
+    g_tof_buffers[back][i].range_m = range_m;
+    g_tof_buffers[back][i].seq++;
+    __atomic_store_n(&g_tof_active_index, back, __ATOMIC_RELEASE);
     portEXIT_CRITICAL(&g_tof_mux);
 }
 
 static void mark_all_invalid(uint8_t status)
 {
     portENTER_CRITICAL(&g_tof_mux);
+    uint32_t active = __atomic_load_n(&g_tof_active_index, __ATOMIC_RELAXED);
+    uint32_t back = 1u - active;
     for (int i = 0; i < TOF_COUNT; i++) {
-        g_tof[i].valid = false;
-        g_tof[i].status = status;
-        g_tof[i].range_m = NAN;
-        g_tof[i].seq++;
+        g_tof_buffers[back][i] = g_tof_buffers[active][i];
+        g_tof_buffers[back][i].valid = false;
+        g_tof_buffers[back][i].status = status;
+        g_tof_buffers[back][i].range_m = NAN;
+        g_tof_buffers[back][i].seq++;
     }
+    __atomic_store_n(&g_tof_active_index, back, __ATOMIC_RELEASE);
     portEXIT_CRITICAL(&g_tof_mux);
 }
 
 void tof_provider_snapshot(tof_sample_t out[TOF_COUNT])
 {
-    portENTER_CRITICAL(&g_tof_mux);
-    for (int i = 0; i < TOF_COUNT; i++) out[i] = g_tof[i];
-    portEXIT_CRITICAL(&g_tof_mux);
+    uint32_t active = __atomic_load_n(&g_tof_active_index, __ATOMIC_ACQUIRE);
+    for (int i = 0; i < TOF_COUNT; i++) {
+        out[i] = g_tof_buffers[active][i];
+    }
 }
 
 // Contexte task capteur
