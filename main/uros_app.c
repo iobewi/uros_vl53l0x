@@ -149,25 +149,38 @@ static void micro_ros_task(void *arg)
         RCCHECK_GOTO(rcl_init_options_init(&init_options, allocator), cleanup);
         init_options_ready = true;
         RCCHECK_GOTO(rcl_init_options_set_domain_id(&init_options, CONFIG_MICRO_ROS_DOMAIN_ID), cleanup);
+        ESP_LOGI(TAG_TASK, "Initializing micro-ROS support...");
         RCCHECK_GOTO(rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator), cleanup);
         context_ready = true;
 
         rcl_node_options_t node_ops = rcl_node_get_default_options();
+        ESP_LOGI(TAG_TASK, "Creating node '%s'...", CONFIG_MICRO_ROS_NODE_NAME);
         RCCHECK_GOTO(rclc_node_init_with_options(&node, CONFIG_MICRO_ROS_NODE_NAME, "", &support, &node_ops), cleanup);
         node_ready = true;
 
-        rc = rclc_publisher_init_default(
-            &publisher,
-            &node,
-            ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, LaserScan),
-            CONFIG_MICRO_ROS_TOPIC_NAME);
-        if (rc != RCL_RET_OK) {
+        ESP_LOGI(TAG_TASK, "Creating publisher '%s'...", CONFIG_MICRO_ROS_TOPIC_NAME);
+        const int max_pub_attempts = 5;
+        for (int attempt = 1; attempt <= max_pub_attempts; attempt++) {
+            rc = rclc_publisher_init_default(
+                &publisher,
+                &node,
+                ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, LaserScan),
+                CONFIG_MICRO_ROS_TOPIC_NAME);
+            if (rc == RCL_RET_OK) {
+                publisher_ready = true;
+                break;
+            }
+            ESP_LOGW(TAG_TASK, "Publisher init attempt %d/%d failed: %d",
+                     attempt, max_pub_attempts, (int)rc);
+            if (attempt < max_pub_attempts) {
+                vTaskDelay(pdMS_TO_TICKS(200));
+            }
+        }
+        if (!publisher_ready) {
             ESP_LOGE("RCCHECK", "Failed status on line %d: %d. Aborting.", __LINE__, (int)rc);
             led_status_set_state(LED_STATUS_ERROR);
-            publisher_ready = true;
             goto cleanup;
         }
-        publisher_ready = true;
 
         int configured_max = max_bin_index();
         if (configured_max >= scan_cfg.bins) {
@@ -242,7 +255,7 @@ cleanup:
                 ESP_LOGW(TAG_TASK, "rcl_node_fini() failed: %d", (int)rc);
             }
         }
-        if (context_ready) {
+        if (context_ready && rcl_context_is_valid(&support.context)) {
             rc = rcl_shutdown(&support.context);
             if (rc != RCL_RET_OK) {
                 ESP_LOGW(TAG_TASK, "rcl_shutdown() failed: %d", (int)rc);
