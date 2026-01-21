@@ -351,11 +351,14 @@ static void micro_ros_task(void *arg)
         node_ready = true;
 
         ESP_LOGI(TAG_TASK, "Creating publisher '%s'...", CONFIG_MICRO_ROS_TOPIC_NAME);
-        // LaserScan QoS: BEST_EFFORT + KEEP_LAST(depth=1) + VOLATILE to avoid XRCE serial backpressure.
+        // LaserScan QoS: BEST_EFFORT by default (configurable to RELIABLE) + KEEP_LAST(depth=1)
+        // + VOLATILE to avoid XRCE serial backpressure.
         rmw_qos_profile_t scan_qos = rmw_qos_profile_default;
         scan_qos.history = RMW_QOS_POLICY_HISTORY_KEEP_LAST;
         scan_qos.depth = 1;
-        scan_qos.reliability = RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
+        scan_qos.reliability = CONFIG_MICRO_ROS_QOS_RELIABLE
+                                   ? RMW_QOS_POLICY_RELIABILITY_RELIABLE
+                                   : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
         scan_qos.durability = RMW_QOS_POLICY_DURABILITY_VOLATILE;
         const int max_pub_attempts = 5;
         for (int attempt = 1; attempt <= max_pub_attempts; attempt++) {
