@@ -48,6 +48,12 @@ menu "micro-ROS application settings"
         help
             Frame id used in the LaserScan header.
 
+    config MICRO_ROS_TOF_BIN_ALLOW_DUPLICATES
+        bool "Allow duplicate ToF bin indices"
+        default n
+        help
+            Allow multiple ToF sensors to map to the same LaserScan bin index.
+
     config MICRO_ROS_SCAN_ALLOC_GUARD
         bool "Enable allocation guard for scan/publish loop"
         default n

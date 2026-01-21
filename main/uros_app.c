@@ -125,15 +125,40 @@ static void heap_guard_end(heap_guard_t before, const char *label)
 
 #define PUBLISH_BACKOFF_MAX_CYCLES 5U
 
-static int max_bin_index(void)
+static bool validate_tof_bin_map(const scan_config_t *cfg)
 {
-    int max_idx = 0;
+    ESP_LOGI(TAG_TASK, "TOF bin mapping (tof -> bin):");
     for (int i = 0; i < TOF_COUNT; i++) {
-        if ((int)TOF_BIN_IDX[i] > max_idx) {
-            max_idx = (int)TOF_BIN_IDX[i];
-        }
+        ESP_LOGI(TAG_TASK, "  tof[%d] -> bin[%u]", i, (unsigned)TOF_BIN_IDX[i]);
     }
-    return max_idx;
+
+#if !CONFIG_MICRO_ROS_TOF_BIN_ALLOW_DUPLICATES
+    bool used[N_BINS] = {0};
+#endif
+
+    bool valid = true;
+    for (int i = 0; i < TOF_COUNT; i++) {
+        uint8_t idx = TOF_BIN_IDX[i];
+        if ((int)idx >= cfg->bins) {
+            ESP_LOGE(TAG_TASK,
+                     "TOF bin index out of range (tof=%d idx=%u bins=%d)",
+                     i, (unsigned)idx, cfg->bins);
+            valid = false;
+            continue;
+        }
+#if !CONFIG_MICRO_ROS_TOF_BIN_ALLOW_DUPLICATES
+        if (used[idx]) {
+            ESP_LOGE(TAG_TASK,
+                     "Duplicate TOF bin index detected (tof=%d idx=%u)",
+                     i, (unsigned)idx);
+            valid = false;
+        } else {
+            used[idx] = true;
+        }
+#endif
+    }
+
+    return valid;
 }
 
 static void sync_time_with_agent(void)
@@ -323,10 +348,7 @@ static void micro_ros_task(void *arg)
             goto cleanup;
         }
 
-        int configured_max = max_bin_index();
-        if (configured_max >= scan_cfg.bins) {
-            ESP_LOGE(TAG_TASK, "TOF bin map exceeds scan bins (max=%d bins=%d)",
-                     configured_max, scan_cfg.bins);
+        if (!validate_tof_bin_map(&scan_cfg)) {
             led_status_set_state(LED_STATUS_ERROR);
             goto cleanup;
         }
