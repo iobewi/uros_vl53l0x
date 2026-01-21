@@ -80,6 +80,7 @@ static rcl_publisher_t publisher;
 static sensor_msgs__msg__LaserScan scan_msg;
 static scan_config_t scan_cfg;
 static volatile uint32_t publish_failures = 0;
+static volatile bool publish_error_burst = false;
 
 static int max_bin_index(void)
 {
@@ -121,8 +122,12 @@ static void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
             ESP_LOGW("RCSOFTCHECK", "rcl_publish() failed %u times (last=%d)",
                      (unsigned)publish_failures, (int)pub_rc);
         }
+        if (publish_failures >= 50) {
+            publish_error_burst = true;
+        }
     } else if (publish_failures > 0) {
         publish_failures = 0;
+        publish_error_burst = false;
     }
 
     static uint32_t div = 0;
@@ -242,19 +247,13 @@ static void micro_ros_task(void *arg)
                  CONFIG_MICRO_ROS_NODE_NAME, CONFIG_MICRO_ROS_TOPIC_NAME, TIMER_PERIOD_MS);
         led_status_set_state(LED_STATUS_CONNECTED);
 
-        uint32_t ping_div = 0;
         uint32_t missed_pings = 0;
-#if CONFIG_MICRO_ROS_AGENT_PING_ENABLE
-        const uint32_t startup_grace_ms = 1500;
-        vTaskDelay(pdMS_TO_TICKS(startup_grace_ms));
-#endif
         while (true) {
             rcl_ret_t spin_ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(50));
             if (spin_ret != RCL_RET_OK) {
                 ESP_LOGE(TAG_TASK, "rclc_executor_spin_some() failed");
             }
-#if CONFIG_MICRO_ROS_AGENT_PING_ENABLE
-            if ((ping_div++ % 100) == 0) {
+            if (publish_error_burst) {
                 if (rmw_uros_ping_agent(1000, 1) != RMW_RET_OK) {
                     missed_pings++;
                     ESP_LOGW(TAG_TASK, "micro-ROS agent ping missed (%" PRIu32 "/3)", missed_pings);
@@ -265,18 +264,10 @@ static void micro_ros_task(void *arg)
                     }
                 } else {
                     missed_pings = 0;
+                    publish_error_burst = false;
+                    publish_failures = 0;
                 }
             }
-#elif CONFIG_MICRO_ROS_PING_ON_PUBLISH_ERRORS
-            if (publish_failures >= CONFIG_MICRO_ROS_PUBLISH_FAIL_PING_THRESHOLD) {
-                if (rmw_uros_ping_agent(1000, 1) != RMW_RET_OK) {
-                    ESP_LOGW(TAG_TASK, "micro-ROS agent unreachable after publish errors, restarting session");
-                    led_status_set_state(LED_STATUS_WAITING);
-                    break;
-                }
-                publish_failures = 0;
-            }
-#endif
             vTaskDelay(pdMS_TO_TICKS(10));
         }
 
