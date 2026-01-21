@@ -77,6 +77,9 @@ static const uint8_t TOF_BIN_IDX[TOF_COUNT] = {
     }                                                                                                 \
 }
 
+#define TIME_SYNC_TIMEOUT_MS 1000U
+#define TIME_SYNC_MAX_ATTEMPTS 5
+
 static rcl_publisher_t publisher;
 static sensor_msgs__msg__LaserScan scan_msg;
 static scan_config_t scan_cfg;
@@ -95,6 +98,22 @@ static int max_bin_index(void)
         }
     }
     return max_idx;
+}
+
+static void sync_time_with_agent(void)
+{
+    rmw_ret_t sync_ret = RMW_RET_ERROR;
+    for (int attempt = 1; attempt <= TIME_SYNC_MAX_ATTEMPTS; attempt++) {
+        sync_ret = rmw_uros_sync_session(TIME_SYNC_TIMEOUT_MS);
+        if (sync_ret == RMW_RET_OK) {
+            ESP_LOGI(TAG_TASK, "Time sync completed");
+            return;
+        }
+        ESP_LOGW(TAG_TASK, "Time sync attempt %d/%d failed: %d",
+                 attempt, TIME_SYNC_MAX_ATTEMPTS, (int)sync_ret);
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+    ESP_LOGW(TAG_TASK, "Time sync failed; timestamps may be unset");
 }
 
 static void scan_msg_set_timestamp(sensor_msgs__msg__LaserScan *msg)
@@ -198,6 +217,7 @@ static void micro_ros_task(void *arg)
         ESP_LOGI(TAG_TASK, "Initializing micro-ROS support...");
         RCCHECK_FAIL_GOTO(rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator), cleanup, init_failed);
         context_ready = true;
+        sync_time_with_agent();
 
         rcl_node_options_t node_ops = rcl_node_get_default_options();
         ESP_LOGI(TAG_TASK, "Creating node '%s'...", CONFIG_MICRO_ROS_NODE_NAME);
