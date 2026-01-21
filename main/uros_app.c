@@ -12,6 +12,7 @@
 #include "freertos/task.h"
 
 #include <rcl/rcl.h>
+#include <rcl/error_handling.h>
 #include <rclc/executor.h>
 #include <rclc/rclc.h>
 
@@ -119,8 +120,11 @@ static void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
     if (pub_rc != RCL_RET_OK) {
         publish_failures++;
         if ((publish_failures % 50) == 0) {
-            ESP_LOGW("RCSOFTCHECK", "rcl_publish() failed %u times (last=%d)",
-                     (unsigned)publish_failures, (int)pub_rc);
+            rcl_error_string_t err = rcl_get_error_string();
+            ESP_LOGW("RCSOFTCHECK", "rcl_publish() failed %u times (last=%d, reason=%s)",
+                     (unsigned)publish_failures, (int)pub_rc,
+                     err.str ? err.str : "unknown");
+            rcl_reset_error();
         }
         if (publish_failures >= 50) {
             publish_error_burst = true;
