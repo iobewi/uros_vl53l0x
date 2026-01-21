@@ -117,7 +117,7 @@ static void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
     rcl_ret_t pub_rc = rcl_publish(&publisher, &scan_msg, NULL);
     if (pub_rc != RCL_RET_OK) {
         publish_failures++;
-        if ((publish_failures % 10) == 0) {
+        if ((publish_failures % 50) == 0) {
             ESP_LOGW("RCSOFTCHECK", "rcl_publish() failed %u times (last=%d)",
                      (unsigned)publish_failures, (int)pub_rc);
         }
@@ -246,17 +246,10 @@ static void micro_ros_task(void *arg)
         uint32_t missed_pings = 0;
         const uint32_t startup_grace_ms = 1500;
         vTaskDelay(pdMS_TO_TICKS(startup_grace_ms));
-        publish_failures = 0;
         while (true) {
             rcl_ret_t spin_ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(50));
             if (spin_ret != RCL_RET_OK) {
                 ESP_LOGE(TAG_TASK, "rclc_executor_spin_some() failed");
-            }
-            if (publish_failures >= 10) {
-                ESP_LOGW(TAG_TASK, "Publish failures detected (%" PRIu32 "), restarting session",
-                         publish_failures);
-                led_status_set_state(LED_STATUS_WAITING);
-                break;
             }
             if ((ping_div++ % 20) == 0) {
                 if (rmw_uros_ping_agent(500, 2) != RMW_RET_OK) {
