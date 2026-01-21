@@ -83,6 +83,9 @@ static const uint8_t TOF_BIN_IDX[TOF_COUNT] = {
 
 #define TIME_SYNC_TIMEOUT_MS 1000U
 #define TIME_SYNC_MAX_ATTEMPTS 5
+#define ENTITY_DESTROY_TIMEOUT_MS 200U
+
+__attribute__((weak)) rmw_ret_t rmw_uros_set_entity_destroy_session_timeout(int64_t timeout_ms);
 
 static rcl_publisher_t publisher;
 static sensor_msgs__msg__LaserScan scan_msg;
@@ -186,6 +189,29 @@ static void scan_msg_set_timestamp(sensor_msgs__msg__LaserScan *msg)
     } else {
         msg->header.stamp.sec = 0;
         msg->header.stamp.nanosec = 0;
+    }
+}
+
+static void log_rcl_failure(const char *tag, const char *label, rcl_ret_t rc)
+{
+    rcl_error_string_t err = rcl_get_error_string();
+    if (err.str != NULL && err.str[0] != '\0') {
+        ESP_LOGW(tag, "%s failed: %d (%s)", label, (int)rc, err.str);
+    } else {
+        ESP_LOGW(tag, "%s failed: %d", label, (int)rc);
+    }
+    rcl_reset_error();
+}
+
+static void configure_entity_destroy_timeout(void)
+{
+    if (rmw_uros_set_entity_destroy_session_timeout != NULL) {
+        rmw_ret_t ret = rmw_uros_set_entity_destroy_session_timeout(ENTITY_DESTROY_TIMEOUT_MS);
+        if (ret != RMW_RET_OK) {
+            ESP_LOGW(TAG_TASK,
+                     "rmw_uros_set_entity_destroy_session_timeout() failed: %d",
+                     (int)ret);
+        }
     }
 }
 
@@ -402,6 +428,7 @@ static void micro_ros_task(void *arg)
             rcl_ret_t spin_ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(50));
             if (spin_ret != RCL_RET_OK) {
                 ESP_LOGE(TAG_TASK, "rclc_executor_spin_some() failed");
+                rcl_reset_error();
             }
             if (publish_error_burst) {
                 if (rmw_uros_ping_agent(1000, 1) != RMW_RET_OK) {
@@ -428,6 +455,7 @@ static void micro_ros_task(void *arg)
         }
 
 cleanup:
+        configure_entity_destroy_timeout();
         if (scan_pub_task_handle != NULL) {
             scan_pub_task_enabled = false;
             scan_pub_task_stop = true;
@@ -439,43 +467,43 @@ cleanup:
         if (executor_ready) {
             rc = rclc_executor_fini(&executor);
             if (rc != RCL_RET_OK) {
-                ESP_LOGW(TAG_TASK, "rclc_executor_fini() failed: %d", (int)rc);
+                log_rcl_failure(TAG_TASK, "rclc_executor_fini()", rc);
             }
         }
         if (timer_ready) {
             rc = rcl_timer_fini(&timer);
             if (rc != RCL_RET_OK) {
-                ESP_LOGW(TAG_TASK, "rcl_timer_fini() failed: %d", (int)rc);
+                log_rcl_failure(TAG_TASK, "rcl_timer_fini()", rc);
             }
         }
         if (publisher_ready) {
             rc = rcl_publisher_fini(&publisher, &node);
             if (rc != RCL_RET_OK) {
-                ESP_LOGW(TAG_TASK, "rcl_publisher_fini() failed: %d", (int)rc);
+                log_rcl_failure(TAG_TASK, "rcl_publisher_fini()", rc);
             }
         }
         if (node_ready) {
             rc = rcl_node_fini(&node);
             if (rc != RCL_RET_OK) {
-                ESP_LOGW(TAG_TASK, "rcl_node_fini() failed: %d", (int)rc);
+                log_rcl_failure(TAG_TASK, "rcl_node_fini()", rc);
             }
         }
         if (context_ready && rcl_context_is_valid(&support.context)) {
             rc = rcl_shutdown(&support.context);
             if (rc != RCL_RET_OK) {
-                ESP_LOGW(TAG_TASK, "rcl_shutdown() failed: %d", (int)rc);
+                log_rcl_failure(TAG_TASK, "rcl_shutdown()", rc);
             }
         }
         if (context_ready) {
             rc = rclc_support_fini(&support);
             if (rc != RCL_RET_OK) {
-                ESP_LOGW(TAG_TASK, "rclc_support_fini() failed: %d", (int)rc);
+                log_rcl_failure(TAG_TASK, "rclc_support_fini()", rc);
             }
         }
         if (init_options_ready) {
             rc = rcl_init_options_fini(&init_options);
             if (rc != RCL_RET_OK) {
-                ESP_LOGW(TAG_TASK, "rcl_init_options_fini() failed: %d", (int)rc);
+                log_rcl_failure(TAG_TASK, "rcl_init_options_fini()", rc);
             }
         }
         if (scan_ready) {
