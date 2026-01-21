@@ -1,4 +1,4 @@
-menu "micro-ROS example-app settings"
+menu "micro-ROS application settings"
 
     config MICRO_ROS_APP_STACK
         int "Stack the micro-ROS app (Bytes)"
@@ -11,6 +11,42 @@ menu "micro-ROS example-app settings"
         default 5
         help
         Priority of micro-ros task higher value means higher priority
+
+    config MICRO_ROS_DOMAIN_ID
+        int "micro-ROS domain ID"
+        default 42
+        help
+            Domain ID used for micro-ROS discovery.
+
+    config MICRO_ROS_NODE_NAME
+        string "micro-ROS node name"
+        default "tof_ring"
+        help
+            ROS node name for the ToF publisher.
+
+    config MICRO_ROS_TOPIC_NAME
+        string "LaserScan topic name"
+        default "/tof_scan"
+        help
+            ROS topic for LaserScan publishing.
+
+    config MICRO_ROS_TIMER_PERIOD_MS
+        int "LaserScan publish period (ms)"
+        default 100
+        help
+            Publish period for the LaserScan timer.
+
+    config MICRO_ROS_SCAN_BINS
+        int "LaserScan number of bins"
+        default 84
+        help
+            Number of bins in the LaserScan message.
+
+    config MICRO_ROS_SCAN_FRAME_ID
+        string "LaserScan frame_id"
+        default "base_link"
+        help
+            Frame id used in the LaserScan header.
 
     config MICRO_ROS_STATUS_LED_ENABLE
         bool "Enable status LED for micro-ROS state"
@@ -32,6 +68,38 @@ menu "micro-ROS example-app settings"
         depends on MICRO_ROS_STATUS_LED_ENABLE
         help
             Brightness scaling for the RGB status LED.
+
+    config MICRO_ROS_TOF_BIN_IDX_0
+        int "ToF bin index for sensor 0"
+        default 5
+
+    config MICRO_ROS_TOF_BIN_IDX_1
+        int "ToF bin index for sensor 1"
+        default 13
+
+    config MICRO_ROS_TOF_BIN_IDX_2
+        int "ToF bin index for sensor 2"
+        default 29
+
+    config MICRO_ROS_TOF_BIN_IDX_3
+        int "ToF bin index for sensor 3"
+        default 37
+
+    config MICRO_ROS_TOF_BIN_IDX_4
+        int "ToF bin index for sensor 4"
+        default 47
+
+    config MICRO_ROS_TOF_BIN_IDX_5
+        int "ToF bin index for sensor 5"
+        default 55
+
+    config MICRO_ROS_TOF_BIN_IDX_6
+        int "ToF bin index for sensor 6"
+        default 71
+
+    config MICRO_ROS_TOF_BIN_IDX_7
+        int "ToF bin index for sensor 7"
+        default 79
         
 endmenu
 

@@ -56,6 +56,18 @@ static inline void update_one(int i, bool valid, uint8_t status, float range_m)
     portEXIT_CRITICAL(&g_tof_mux);
 }
 
+static void mark_all_invalid(uint8_t status)
+{
+    portENTER_CRITICAL(&g_tof_mux);
+    for (int i = 0; i < TOF_COUNT; i++) {
+        g_tof[i].valid = false;
+        g_tof[i].status = status;
+        g_tof[i].range_m = NAN;
+        g_tof[i].seq++;
+    }
+    portEXIT_CRITICAL(&g_tof_mux);
+}
+
 void tof_provider_snapshot(tof_sample_t out[TOF_COUNT])
 {
     portENTER_CRITICAL(&g_tof_mux);
@@ -123,6 +135,7 @@ void tof_provider_init(void)
     esp_err_t err = vl53l0x_i2c_master_init(PIN_SDA, PIN_SCL, I2C_FREQ_HZ);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "I2C init failed: %s", esp_err_to_name(err));
+        mark_all_invalid(255);
         return;
     }
 
@@ -137,6 +150,7 @@ void tof_provider_init(void)
     err = vl53l0x_multi_assign_addresses(slots, TOF_COUNT, 10);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Address assignment failed: %s", esp_err_to_name(err));
+        mark_all_invalid(255);
         return;
     }
 
@@ -150,6 +164,7 @@ void tof_provider_init(void)
         err = vl53l0x_init(&devs[i], TIMING_BUDGET_US);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Init dev[%d] failed: %s", i, esp_err_to_name(err));
+            mark_all_invalid(255);
             return;
         }
 
@@ -157,6 +172,7 @@ void tof_provider_init(void)
         err = vl53l0x_enable_gpio_ready(&devs[i], INT_PINS[i], true);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "GPIO ready init dev[%d] failed: %s", i, esp_err_to_name(err));
+            mark_all_invalid(255);
             return;
         }
 
@@ -164,6 +180,7 @@ void tof_provider_init(void)
         VL53L0X_Error st = VL53L0X_StartMeasurement(&devs[i].st);
         if (st != VL53L0X_ERROR_NONE) {
             ESP_LOGE(TAG, "StartMeasurement dev[%d] failed: %d", i, (int)st);
+            mark_all_invalid(255);
             return;
         }
 
@@ -174,6 +191,7 @@ void tof_provider_init(void)
     SemaphoreHandle_t i2c_mutex = xSemaphoreCreateMutex();
     if (i2c_mutex == NULL) {
         ESP_LOGE(TAG, "Failed to create I2C mutex");
+        mark_all_invalid(255);
         return;
     }
 
@@ -186,7 +204,12 @@ void tof_provider_init(void)
 
         char name[16];
         snprintf(name, sizeof(name), "vl53_%d", i);
-        xTaskCreate(sensor_task, name, 4096, &ctx[i], 5, NULL);
+        BaseType_t ok = xTaskCreate(sensor_task, name, 4096, &ctx[i], 5, NULL);
+        if (ok != pdPASS) {
+            ESP_LOGE(TAG, "Failed to create sensor task %s", name);
+            mark_all_invalid(255);
+            return;
+        }
     }
 
     ESP_LOGI(TAG, "VL53 provider started (%d sensors)", TOF_COUNT);
