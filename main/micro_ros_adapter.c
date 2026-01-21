@@ -401,32 +401,43 @@ static void micro_ros_task(void *arg)
                  CONFIG_MICRO_ROS_NODE_NAME, CONFIG_MICRO_ROS_TOPIC_NAME, TIMER_PERIOD_MS);
         led_status_set_state(LED_STATUS_CONNECTED);
 
+        const TickType_t ping_interval = pdMS_TO_TICKS(1000);
+        const uint32_t max_missed_pings = 3;
         uint32_t missed_pings = 0;
+        TickType_t last_ping_tick = xTaskGetTickCount();
         while (true) {
             rcl_ret_t spin_ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(50));
             if (spin_ret != RCL_RET_OK) {
                 ESP_LOGE(TAG_TASK, "rclc_executor_spin_some() failed");
                 rcl_reset_error();
             }
-            if (publish_error_burst) {
+            TickType_t now_tick = xTaskGetTickCount();
+            if ((now_tick - last_ping_tick) >= ping_interval) {
+                last_ping_tick = now_tick;
                 if (rmw_uros_ping_agent(1000, 1) != RMW_RET_OK) {
                     missed_pings++;
                     agent_missed_pings++;
-                    ESP_LOGW(TAG_TASK, "micro-ROS agent ping missed (%" PRIu32 "/3)", missed_pings);
-                    if (missed_pings >= 3) {
+                    ESP_LOGW(TAG_TASK,
+                             "micro-ROS agent ping missed (%" PRIu32 "/%" PRIu32 ")",
+                             missed_pings, max_missed_pings);
+                    if (missed_pings >= max_missed_pings) {
                         ESP_LOGW(TAG_TASK, "micro-ROS agent lost, restarting session");
                         led_status_set_state(LED_STATUS_WAITING);
                         break;
                     }
                 } else {
-                    missed_pings = 0;
-                    congestion_detected++;
-                    publish_backoff_cycles = PUBLISH_BACKOFF_MAX_CYCLES;
-                    ESP_LOGW(TAG_TASK,
-                             "Publish failures with agent reachable (congestion=%" PRIu32
-                             ", publish_failures=%" PRIu32 "). Slowing down without restart.",
-                             congestion_detected, publish_failures);
-                    publish_error_burst = false;
+                    if (missed_pings != 0) {
+                        missed_pings = 0;
+                    }
+                    if (publish_error_burst) {
+                        congestion_detected++;
+                        publish_backoff_cycles = PUBLISH_BACKOFF_MAX_CYCLES;
+                        ESP_LOGW(TAG_TASK,
+                                 "Publish failures with agent reachable (congestion=%" PRIu32
+                                 ", publish_failures=%" PRIu32 "). Slowing down without restart.",
+                                 congestion_detected, publish_failures);
+                        publish_error_burst = false;
+                    }
                 }
             }
             vTaskDelay(pdMS_TO_TICKS(10));
