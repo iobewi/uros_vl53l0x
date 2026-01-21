@@ -61,8 +61,8 @@ bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cf
     msg->range_min = cfg->range_min;
     msg->range_max = cfg->range_max;
 
-    msg->time_increment = 0.0f;
-    msg->scan_time = 0.0f;
+    msg->time_increment = cfg->time_increment;
+    msg->scan_time = cfg->scan_time;
 
     msg->ranges.data = (float*)malloc(sizeof(float) * (size_t)cfg->bins);
     if (!msg->ranges.data) {

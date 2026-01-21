@@ -245,6 +245,8 @@ static void micro_ros_task(void *arg)
     scan_cfg.bins      = N_BINS;
     scan_cfg.range_min = 0.03f;
     scan_cfg.range_max = 2.00f;
+    scan_cfg.scan_time = (float)TIMER_PERIOD_MS / 1000.0f;
+    scan_cfg.time_increment = 0.0f;
     scan_cfg.frame_id  = SCAN_FRAME;
 
     uint32_t consecutive_failures = 0;
