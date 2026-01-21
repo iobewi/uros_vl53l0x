@@ -48,6 +48,26 @@ menu "micro-ROS application settings"
         help
             Frame id used in the LaserScan header.
 
+    config MICRO_ROS_DEBUG_LOGS
+        bool "Enable micro-ROS debug logs"
+        default n
+        help
+            Enable debug-level logs for periodic publish status output.
+
+    config MICRO_ROS_PUBLISH_LOG_DIVIDER
+        int "Publish log divider (0=off)"
+        range 0 1000
+        default 10
+        help
+            Divider for periodic publish logs. Set to 0 to disable.
+
+    config MICRO_ROS_PUBLISH_ERROR_LOG_DIVIDER
+        int "Publish error log divider (0=off)"
+        range 0 1000
+        default 50
+        help
+            Divider for publish error logs. Set to 0 to disable.
+
     config MICRO_ROS_TOF_BIN_ALLOW_DUPLICATES
         bool "Allow duplicate ToF bin indices"
         default n

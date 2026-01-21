@@ -85,6 +85,18 @@ static const uint8_t TOF_BIN_IDX[TOF_COUNT] = {
 #define TIME_SYNC_MAX_ATTEMPTS 5
 #define ENTITY_DESTROY_TIMEOUT_MS 200U
 
+#if CONFIG_MICRO_ROS_DEBUG_LOGS
+#define MICROROS_LOG_PUBLISH_EVERY_N(divider, tag, fmt, ...)                           \
+    do {                                                                               \
+        static uint32_t microros_log_divider = 0;                                      \
+        if ((divider) > 0 && ((microros_log_divider++ % (divider)) == 0)) {            \
+            ESP_LOGD(tag, fmt, ##__VA_ARGS__);                                         \
+        }                                                                              \
+    } while (0)
+#else
+#define MICROROS_LOG_PUBLISH_EVERY_N(divider, tag, fmt, ...) do { (void)(divider); } while (0)
+#endif
+
 __attribute__((weak)) rmw_ret_t rmw_uros_set_entity_destroy_session_timeout(int64_t timeout_ms);
 
 static rcl_publisher_t publisher;
@@ -248,7 +260,8 @@ static void scan_pub_task(void *arg)
             if (publish_backoff_cycles < PUBLISH_BACKOFF_MAX_CYCLES) {
                 publish_backoff_cycles++;
             }
-            if ((publish_failures % 50) == 0) {
+            if (CONFIG_MICRO_ROS_PUBLISH_ERROR_LOG_DIVIDER > 0 &&
+                (publish_failures % CONFIG_MICRO_ROS_PUBLISH_ERROR_LOG_DIVIDER) == 0) {
                 rcl_error_string_t err = rcl_get_error_string();
                 ESP_LOGW("RCSOFTCHECK", "rcl_publish() failed %u times (last=%d, reason=%s)",
                          (unsigned)publish_failures, (int)pub_rc,
@@ -267,9 +280,9 @@ static void scan_pub_task(void *arg)
 #if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
         heap_guard_end(guard, "scan_publish_loop");
 #endif
-        static uint32_t div = 0;
-        if (publish_ok && (div++ % 10) == 0) {
-            ESP_LOGI(TAG_CB, "Published %s (%d bins)", CONFIG_MICRO_ROS_TOPIC_NAME, N_BINS);
+        if (publish_ok) {
+            MICROROS_LOG_PUBLISH_EVERY_N(CONFIG_MICRO_ROS_PUBLISH_LOG_DIVIDER, TAG_CB,
+                                         "Published %s (%d bins)", CONFIG_MICRO_ROS_TOPIC_NAME, N_BINS);
         }
     }
 
