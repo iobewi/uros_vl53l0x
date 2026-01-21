@@ -85,6 +85,8 @@ static rcl_publisher_t publisher;
 static sensor_msgs__msg__LaserScan scan_msg;
 static scan_config_t scan_cfg;
 static volatile uint32_t publish_failures = 0;
+static volatile uint32_t agent_missed_pings = 0;
+static volatile uint32_t congestion_detected = 0;
 static volatile bool publish_error_burst = false;
 static uint32_t publish_backoff_cycles = 0;
 static TaskHandle_t scan_pub_task_handle = NULL;
@@ -344,6 +346,7 @@ static void micro_ros_task(void *arg)
             if (publish_error_burst) {
                 if (rmw_uros_ping_agent(1000, 1) != RMW_RET_OK) {
                     missed_pings++;
+                    agent_missed_pings++;
                     ESP_LOGW(TAG_TASK, "micro-ROS agent ping missed (%" PRIu32 "/3)", missed_pings);
                     if (missed_pings >= 3) {
                         ESP_LOGW(TAG_TASK, "micro-ROS agent lost, restarting session");
@@ -352,8 +355,13 @@ static void micro_ros_task(void *arg)
                     }
                 } else {
                     missed_pings = 0;
+                    congestion_detected++;
+                    publish_backoff_cycles = PUBLISH_BACKOFF_MAX_CYCLES;
+                    ESP_LOGW(TAG_TASK,
+                             "Publish failures with agent reachable (congestion=%" PRIu32
+                             ", publish_failures=%" PRIu32 "). Slowing down without restart.",
+                             congestion_detected, publish_failures);
                     publish_error_burst = false;
-                    publish_failures = 0;
                 }
             }
             vTaskDelay(pdMS_TO_TICKS(10));
