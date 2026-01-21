@@ -3,6 +3,7 @@
 
 #include <sensor_msgs/msg/laser_scan.h>
 #include "tof_provider.h"
+#include "tof_config.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,7 +59,7 @@ void scan_builder_deinit(sensor_msgs__msg__LaserScan *msg);
  *        using a fixed bin index mapping.
  *
  * The scan is first cleared (all ranges set to NAN). Each ToF sample is then
- * written to the LaserScan bin specified by idx_map[sensor_index].
+ * written to the LaserScan bin specified by hw_cfg[sensor_index].bin_idx.
  *
  * - The mapping is index-based (no angle computation or rounding).
  * - Each ToF sensor is expected to map to a unique bin (no overlap).
@@ -69,12 +70,12 @@ void scan_builder_deinit(sensor_msgs__msg__LaserScan *msg);
  * @param cfg       Scan configuration (bin count, angle_min, angle_increment,
  *                  range_min, range_max, scan timing).
  * @param samples   Snapshot array of TOF_COUNT ToF measurements.
- * @param idx_map   Mapping table: one LaserScan bin index per ToF sensor.
+ * @param hw_cfg    Hardware configuration table (includes bin indices).
  */
 void scan_builder_fill(sensor_msgs__msg__LaserScan *msg,
                        const scan_config_t *cfg,
                        const tof_sample_t samples[TOF_COUNT],
-                       const uint8_t idx_map[TOF_COUNT]);
+                       const tof_hw_config_t *hw_cfg);
 
 
 #ifdef __cplusplus

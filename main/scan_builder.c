@@ -98,9 +98,9 @@ void scan_builder_deinit(sensor_msgs__msg__LaserScan *msg)
 void scan_builder_fill(sensor_msgs__msg__LaserScan *msg,
                        const scan_config_t *cfg,
                        const tof_sample_t samples[TOF_COUNT],
-                       const uint8_t idx_map[TOF_COUNT])
+                       const tof_hw_config_t *hw_cfg)
 {
-    if (!msg || !cfg || !samples || !idx_map || cfg->bins <= 0) return;
+    if (!msg || !cfg || !samples || !hw_cfg || cfg->bins <= 0) return;
     if (!msg->ranges.data || msg->ranges.capacity < (size_t)cfg->bins) return;
 #if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
     heap_guard_t guard = heap_guard_begin();
@@ -112,7 +112,7 @@ void scan_builder_fill(sensor_msgs__msg__LaserScan *msg,
     }
 
     for (int s = 0; s < TOF_COUNT; s++) {
-        const int idx = (int)idx_map[s];
+        const int idx = (int)hw_cfg[s].bin_idx;
         if ((unsigned)idx >= (unsigned)cfg->bins) continue;
 
         if (!samples[s].valid || samples[s].status != 0 || isnan(samples[s].range_m)) {

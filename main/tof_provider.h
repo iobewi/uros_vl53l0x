@@ -2,11 +2,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "sdkconfig.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define TOF_COUNT 8
+#define TOF_COUNT CONFIG_TOF_COUNT
 
 typedef struct {
     bool valid;

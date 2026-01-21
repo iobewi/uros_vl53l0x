@@ -17,6 +17,7 @@ idf_component_register(
         "uros_app.c"
         "led_status.c"
         "scan_builder.c"
+        "tof_config.c"
         "tof_provider.c"
     INCLUDE_DIRS
         "."
