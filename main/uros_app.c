@@ -4,8 +4,10 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <inttypes.h>
 
 #include "esp_log.h"
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -58,6 +60,15 @@ static const uint8_t TOF_BIN_IDX[TOF_COUNT] = {
     }                                                                                                 \
 }
 
+#define RCCHECK_FAIL_GOTO(fn, label, flag) {                                                          \
+    rcl_ret_t temp_rc = fn;                                                                           \
+    if (temp_rc != RCL_RET_OK) {                                                                      \
+        ESP_LOGE("RCCHECK", "Failed status on line %d: %d. Aborting.", __LINE__, (int)temp_rc);      \
+        led_status_set_state(LED_STATUS_ERROR);                                                       \
+        flag = true;                                                                                  \
+        goto label;                                                                                   \
+    }                                                                                                 \
+}
 #define RCSOFTCHECK(fn) {                                                                             \
     rcl_ret_t temp_rc = fn;                                                                           \
     if (temp_rc != RCL_RET_OK) {                                                                      \
@@ -121,6 +132,8 @@ static void micro_ros_task(void *arg)
     scan_cfg.range_max = 2.00f;
     scan_cfg.frame_id  = SCAN_FRAME;
 
+    uint32_t consecutive_failures = 0;
+
     while (true) {
         rcl_ret_t rc = RCL_RET_OK;
         bool scan_ready = false;
@@ -130,6 +143,7 @@ static void micro_ros_task(void *arg)
         bool timer_ready = false;
         bool init_options_ready = false;
         bool context_ready = false;
+        bool init_failed = false;
 
         rcl_allocator_t allocator = rcl_get_default_allocator();
         publisher = rcl_get_zero_initialized_publisher();
@@ -146,16 +160,17 @@ static void micro_ros_task(void *arg)
         }
         ESP_LOGI(TAG_TASK, "Agent detected, starting RCL init");
 
-        RCCHECK_GOTO(rcl_init_options_init(&init_options, allocator), cleanup);
+        RCCHECK_FAIL_GOTO(rcl_init_options_init(&init_options, allocator), cleanup, init_failed);
         init_options_ready = true;
-        RCCHECK_GOTO(rcl_init_options_set_domain_id(&init_options, CONFIG_MICRO_ROS_DOMAIN_ID), cleanup);
+        RCCHECK_FAIL_GOTO(rcl_init_options_set_domain_id(&init_options, CONFIG_MICRO_ROS_DOMAIN_ID), cleanup, init_failed);
         ESP_LOGI(TAG_TASK, "Initializing micro-ROS support...");
-        RCCHECK_GOTO(rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator), cleanup);
+        RCCHECK_FAIL_GOTO(rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator), cleanup, init_failed);
         context_ready = true;
 
         rcl_node_options_t node_ops = rcl_node_get_default_options();
         ESP_LOGI(TAG_TASK, "Creating node '%s'...", CONFIG_MICRO_ROS_NODE_NAME);
-        RCCHECK_GOTO(rclc_node_init_with_options(&node, CONFIG_MICRO_ROS_NODE_NAME, "", &support, &node_ops), cleanup);
+        RCCHECK_FAIL_GOTO(rclc_node_init_with_options(&node, CONFIG_MICRO_ROS_NODE_NAME, "", &support, &node_ops),
+                          cleanup, init_failed);
         node_ready = true;
 
         ESP_LOGI(TAG_TASK, "Creating publisher '%s'...", CONFIG_MICRO_ROS_TOPIC_NAME);
@@ -179,6 +194,7 @@ static void micro_ros_task(void *arg)
         if (!publisher_ready) {
             ESP_LOGE("RCCHECK", "Failed status on line %d: %d. Aborting.", __LINE__, (int)rc);
             led_status_set_state(LED_STATUS_ERROR);
+            init_failed = true;
             goto cleanup;
         }
 
@@ -197,18 +213,20 @@ static void micro_ros_task(void *arg)
         }
         scan_ready = true;
 
-        RCCHECK_GOTO(rclc_timer_init_default2(
+        RCCHECK_FAIL_GOTO(rclc_timer_init_default2(
             &timer,
             &support,
             RCL_MS_TO_NS(TIMER_PERIOD_MS),
             timer_callback,
             true),
-            cleanup);
+            cleanup,
+            init_failed);
         timer_ready = true;
 
-        RCCHECK_GOTO(rclc_executor_init(&executor, &support.context, NUMBER_OF_HANDLES, &allocator), cleanup);
+        RCCHECK_FAIL_GOTO(rclc_executor_init(&executor, &support.context, NUMBER_OF_HANDLES, &allocator),
+                          cleanup, init_failed);
         executor_ready = true;
-        RCCHECK_GOTO(rclc_executor_add_timer(&executor, &timer), cleanup);
+        RCCHECK_FAIL_GOTO(rclc_executor_add_timer(&executor, &timer), cleanup, init_failed);
 
         ESP_LOGI(TAG_TASK, "micro-ROS up: node=%s topic=%s period=%dms",
                  CONFIG_MICRO_ROS_NODE_NAME, CONFIG_MICRO_ROS_TOPIC_NAME, TIMER_PERIOD_MS);
@@ -275,6 +293,17 @@ cleanup:
         }
         if (scan_ready) {
             scan_builder_deinit(&scan_msg);
+        }
+        if (init_failed) {
+            consecutive_failures++;
+            ESP_LOGW(TAG_TASK, "Initialization failed (%" PRIu32 " consecutive)", consecutive_failures);
+            if (consecutive_failures >= 3) {
+                ESP_LOGE(TAG_TASK, "Too many init failures, restarting system");
+                vTaskDelay(pdMS_TO_TICKS(200));
+                esp_restart();
+            }
+        } else {
+            consecutive_failures = 0;
         }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
