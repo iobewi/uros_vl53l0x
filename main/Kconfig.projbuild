@@ -68,12 +68,6 @@ menu "micro-ROS application settings"
         help
             Divider for publish error logs. Set to 0 to disable.
 
-    config MICRO_ROS_TOF_BIN_ALLOW_DUPLICATES
-        bool "Allow duplicate ToF bin indices"
-        default n
-        help
-            Allow multiple ToF sensors to map to the same LaserScan bin index.
-
     config MICRO_ROS_SCAN_ALLOC_GUARD
         bool "Enable allocation guard for scan/publish loop"
         default n
@@ -102,38 +96,369 @@ menu "micro-ROS application settings"
         help
             Brightness scaling for the RGB status LED.
 
-    config MICRO_ROS_TOF_BIN_IDX_0
+endmenu
+
+menu "ToF hardware configuration"
+
+    config TOF_COUNT
+        int "Number of ToF sensors"
+        range 1 16
+        default 8
+        help
+            Number of ToF sensors configured in the system.
+
+    config TOF_BIN_ALLOW_DUPLICATES
+        bool "Allow duplicate ToF bin indices"
+        default n
+        help
+            Allow multiple ToF sensors to map to the same LaserScan bin index.
+
+    config TOF_I2C_SDA_GPIO
+        int "ToF I2C SDA GPIO"
+        default 8
+        help
+            GPIO used for the ToF I2C SDA line.
+
+    config TOF_I2C_SCL_GPIO
+        int "ToF I2C SCL GPIO"
+        default 9
+        help
+            GPIO used for the ToF I2C SCL line.
+
+    config TOF_I2C_FREQ_HZ
+        int "ToF I2C frequency (Hz)"
+        default 400000
+        help
+            I2C clock frequency for the ToF bus.
+
+    config TOF_TIMING_BUDGET_US
+        int "ToF timing budget (us)"
+        default 33000
+        help
+            Measurement timing budget for each sensor.
+
+    config TOF_GPIO_READY_TIMEOUT_MS
+        int "ToF GPIO ready timeout (ms)"
+        default 1000
+        help
+            Timeout waiting for the GPIO ready interrupt.
+
+    config TOF_0_XSHUT_GPIO
+        int "ToF 0 XSHUT GPIO"
+        default 3
+
+    config TOF_0_INT_GPIO
+        int "ToF 0 INT GPIO"
+        default 2
+
+    config TOF_0_ADDR_7B
+        int "ToF 0 I2C address (7-bit)"
+        default 0x2A
+
+    config TOF_0_BIN_IDX
         int "ToF bin index for sensor 0"
         default 5
 
-    config MICRO_ROS_TOF_BIN_IDX_1
+    if TOF_COUNT > 1
+
+    config TOF_1_XSHUT_GPIO
+        int "ToF 1 XSHUT GPIO"
+        default 5
+
+    config TOF_1_INT_GPIO
+        int "ToF 1 INT GPIO"
+        default 4
+
+    config TOF_1_ADDR_7B
+        int "ToF 1 I2C address (7-bit)"
+        default 0x2B
+
+    config TOF_1_BIN_IDX
         int "ToF bin index for sensor 1"
         default 13
 
-    config MICRO_ROS_TOF_BIN_IDX_2
+    endif
+
+    if TOF_COUNT > 2
+
+    config TOF_2_XSHUT_GPIO
+        int "ToF 2 XSHUT GPIO"
+        default 6
+
+    config TOF_2_INT_GPIO
+        int "ToF 2 INT GPIO"
+        default 14
+
+    config TOF_2_ADDR_7B
+        int "ToF 2 I2C address (7-bit)"
+        default 0x2C
+
+    config TOF_2_BIN_IDX
         int "ToF bin index for sensor 2"
         default 29
 
-    config MICRO_ROS_TOF_BIN_IDX_3
+    endif
+
+    if TOF_COUNT > 3
+
+    config TOF_3_XSHUT_GPIO
+        int "ToF 3 XSHUT GPIO"
+        default 7
+
+    config TOF_3_INT_GPIO
+        int "ToF 3 INT GPIO"
+        default 15
+
+    config TOF_3_ADDR_7B
+        int "ToF 3 I2C address (7-bit)"
+        default 0x2D
+
+    config TOF_3_BIN_IDX
         int "ToF bin index for sensor 3"
         default 37
 
-    config MICRO_ROS_TOF_BIN_IDX_4
+    endif
+
+    if TOF_COUNT > 4
+
+    config TOF_4_XSHUT_GPIO
+        int "ToF 4 XSHUT GPIO"
+        default 10
+
+    config TOF_4_INT_GPIO
+        int "ToF 4 INT GPIO"
+        default 16
+
+    config TOF_4_ADDR_7B
+        int "ToF 4 I2C address (7-bit)"
+        default 0x2E
+
+    config TOF_4_BIN_IDX
         int "ToF bin index for sensor 4"
         default 47
 
-    config MICRO_ROS_TOF_BIN_IDX_5
+    endif
+
+    if TOF_COUNT > 5
+
+    config TOF_5_XSHUT_GPIO
+        int "ToF 5 XSHUT GPIO"
+        default 11
+
+    config TOF_5_INT_GPIO
+        int "ToF 5 INT GPIO"
+        default 17
+
+    config TOF_5_ADDR_7B
+        int "ToF 5 I2C address (7-bit)"
+        default 0x2F
+
+    config TOF_5_BIN_IDX
         int "ToF bin index for sensor 5"
         default 55
 
-    config MICRO_ROS_TOF_BIN_IDX_6
+    endif
+
+    if TOF_COUNT > 6
+
+    config TOF_6_XSHUT_GPIO
+        int "ToF 6 XSHUT GPIO"
+        default 12
+
+    config TOF_6_INT_GPIO
+        int "ToF 6 INT GPIO"
+        default 18
+
+    config TOF_6_ADDR_7B
+        int "ToF 6 I2C address (7-bit)"
+        default 0x30
+
+    config TOF_6_BIN_IDX
         int "ToF bin index for sensor 6"
         default 71
 
-    config MICRO_ROS_TOF_BIN_IDX_7
+    endif
+
+    if TOF_COUNT > 7
+
+    config TOF_7_XSHUT_GPIO
+        int "ToF 7 XSHUT GPIO"
+        default 13
+
+    config TOF_7_INT_GPIO
+        int "ToF 7 INT GPIO"
+        default 19
+
+    config TOF_7_ADDR_7B
+        int "ToF 7 I2C address (7-bit)"
+        default 0x31
+
+    config TOF_7_BIN_IDX
         int "ToF bin index for sensor 7"
         default 79
-        
+
+    endif
+
+    if TOF_COUNT > 8
+
+    config TOF_8_XSHUT_GPIO
+        int "ToF 8 XSHUT GPIO"
+        default 0
+
+    config TOF_8_INT_GPIO
+        int "ToF 8 INT GPIO"
+        default 0
+
+    config TOF_8_ADDR_7B
+        int "ToF 8 I2C address (7-bit)"
+        default 0x32
+
+    config TOF_8_BIN_IDX
+        int "ToF bin index for sensor 8"
+        default 0
+
+    endif
+
+    if TOF_COUNT > 9
+
+    config TOF_9_XSHUT_GPIO
+        int "ToF 9 XSHUT GPIO"
+        default 0
+
+    config TOF_9_INT_GPIO
+        int "ToF 9 INT GPIO"
+        default 0
+
+    config TOF_9_ADDR_7B
+        int "ToF 9 I2C address (7-bit)"
+        default 0x33
+
+    config TOF_9_BIN_IDX
+        int "ToF bin index for sensor 9"
+        default 0
+
+    endif
+
+    if TOF_COUNT > 10
+
+    config TOF_10_XSHUT_GPIO
+        int "ToF 10 XSHUT GPIO"
+        default 0
+
+    config TOF_10_INT_GPIO
+        int "ToF 10 INT GPIO"
+        default 0
+
+    config TOF_10_ADDR_7B
+        int "ToF 10 I2C address (7-bit)"
+        default 0x34
+
+    config TOF_10_BIN_IDX
+        int "ToF bin index for sensor 10"
+        default 0
+
+    endif
+
+    if TOF_COUNT > 11
+
+    config TOF_11_XSHUT_GPIO
+        int "ToF 11 XSHUT GPIO"
+        default 0
+
+    config TOF_11_INT_GPIO
+        int "ToF 11 INT GPIO"
+        default 0
+
+    config TOF_11_ADDR_7B
+        int "ToF 11 I2C address (7-bit)"
+        default 0x35
+
+    config TOF_11_BIN_IDX
+        int "ToF bin index for sensor 11"
+        default 0
+
+    endif
+
+    if TOF_COUNT > 12
+
+    config TOF_12_XSHUT_GPIO
+        int "ToF 12 XSHUT GPIO"
+        default 0
+
+    config TOF_12_INT_GPIO
+        int "ToF 12 INT GPIO"
+        default 0
+
+    config TOF_12_ADDR_7B
+        int "ToF 12 I2C address (7-bit)"
+        default 0x36
+
+    config TOF_12_BIN_IDX
+        int "ToF bin index for sensor 12"
+        default 0
+
+    endif
+
+    if TOF_COUNT > 13
+
+    config TOF_13_XSHUT_GPIO
+        int "ToF 13 XSHUT GPIO"
+        default 0
+
+    config TOF_13_INT_GPIO
+        int "ToF 13 INT GPIO"
+        default 0
+
+    config TOF_13_ADDR_7B
+        int "ToF 13 I2C address (7-bit)"
+        default 0x37
+
+    config TOF_13_BIN_IDX
+        int "ToF bin index for sensor 13"
+        default 0
+
+    endif
+
+    if TOF_COUNT > 14
+
+    config TOF_14_XSHUT_GPIO
+        int "ToF 14 XSHUT GPIO"
+        default 0
+
+    config TOF_14_INT_GPIO
+        int "ToF 14 INT GPIO"
+        default 0
+
+    config TOF_14_ADDR_7B
+        int "ToF 14 I2C address (7-bit)"
+        default 0x38
+
+    config TOF_14_BIN_IDX
+        int "ToF bin index for sensor 14"
+        default 0
+
+    endif
+
+    if TOF_COUNT > 15
+
+    config TOF_15_XSHUT_GPIO
+        int "ToF 15 XSHUT GPIO"
+        default 0
+
+    config TOF_15_INT_GPIO
+        int "ToF 15 INT GPIO"
+        default 0
+
+    config TOF_15_ADDR_7B
+        int "ToF 15 I2C address (7-bit)"
+        default 0x39
+
+    config TOF_15_BIN_IDX
+        int "ToF bin index for sensor 15"
+        default 0
+
+    endif
+
 endmenu
 
 menu "ToF provider"

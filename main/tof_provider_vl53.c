@@ -13,34 +13,9 @@
 
 #include "vl53l0x.h"   // ESP-IDF_VL53L0X
 
+#include "tof_config.h"
+
 static const char *TAG = "TOF_PROVIDER_VL53";
-
-// ----------- Ajuste à ton PCB -----------
-#define PIN_SDA GPIO_NUM_8
-#define PIN_SCL GPIO_NUM_9
-#define I2C_FREQ_HZ 400000
-
-// 8 capteurs: XSHUT et INT
-static const gpio_num_t XSHUT_PINS[TOF_COUNT] = {
-    GPIO_NUM_3, GPIO_NUM_5, GPIO_NUM_6, GPIO_NUM_7,
-    GPIO_NUM_10, GPIO_NUM_11, GPIO_NUM_12, GPIO_NUM_13
-};
-
-static const gpio_num_t INT_PINS[TOF_COUNT] = {
-    GPIO_NUM_2, GPIO_NUM_4, GPIO_NUM_14, GPIO_NUM_15,
-    GPIO_NUM_16, GPIO_NUM_17, GPIO_NUM_18, GPIO_NUM_19
-};
-
-// Adresses I2C 7 bits (0x29 est l’adresse par défaut)
-static const uint8_t ADDR_7B[TOF_COUNT] = {
-    0x2A, 0x2B, 0x2C, 0x2D,
-    0x2E, 0x2F, 0x30, 0x31
-};
-
-// Timing budget / configuration capteur
-#define TIMING_BUDGET_US 33000
-#define GPIO_READY_TIMEOUT_MS 1000
-// ---------------------------------------
 
 // État partagé (double buffer).
 // Les writers ne modifient jamais le buffer "actif". Ils écrivent dans le buffer
@@ -146,8 +121,12 @@ static void sensor_task(void *arg)
 
 void tof_provider_init(void)
 {
+    const tof_bus_config_t *bus_cfg = tof_get_bus_config();
+    const tof_hw_config_t *hw_cfg = tof_get_hw_config();
+
     ESP_LOGI(TAG, "Init I2C bus...");
-    esp_err_t err = vl53l0x_i2c_master_init(PIN_SDA, PIN_SCL, I2C_FREQ_HZ);
+    esp_err_t err = vl53l0x_i2c_master_init(bus_cfg->sda_gpio, bus_cfg->scl_gpio,
+                                            bus_cfg->i2c_freq_hz);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "I2C init failed: %s", esp_err_to_name(err));
         mark_all_invalid(255);
@@ -157,8 +136,8 @@ void tof_provider_init(void)
     // Slots pour assignation d’adresses via XSHUT
     vl53l0x_slot_t slots[TOF_COUNT];
     for (int i = 0; i < TOF_COUNT; i++) {
-        slots[i].xshut_gpio = XSHUT_PINS[i];
-        slots[i].new_addr_7b = ADDR_7B[i];
+        slots[i].xshut_gpio = hw_cfg[i].xshut_gpio;
+        slots[i].new_addr_7b = hw_cfg[i].addr_7b;
     }
 
     ESP_LOGI(TAG, "Assign addresses (multi XSHUT)...");
@@ -171,12 +150,12 @@ void tof_provider_init(void)
 
     static vl53l0x_dev_t devs[TOF_COUNT];
     for (int i = 0; i < TOF_COUNT; i++) {
-        devs[i].addr_7b = ADDR_7B[i];
+        devs[i].addr_7b = hw_cfg[i].addr_7b;
     }
 
     ESP_LOGI(TAG, "Init %d devices...", TOF_COUNT);
     for (int i = 0; i < TOF_COUNT; i++) {
-        err = vl53l0x_init(&devs[i], TIMING_BUDGET_US);
+        err = vl53l0x_init(&devs[i], bus_cfg->timing_budget_us);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Init dev[%d] failed: %s", i, esp_err_to_name(err));
             mark_all_invalid(255);
@@ -184,7 +163,7 @@ void tof_provider_init(void)
         }
 
         // Active l’IRQ data-ready sur INT_i
-        err = vl53l0x_enable_gpio_ready(&devs[i], INT_PINS[i], true);
+        err = vl53l0x_enable_gpio_ready(&devs[i], hw_cfg[i].int_gpio, true);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "GPIO ready init dev[%d] failed: %s", i, esp_err_to_name(err));
             mark_all_invalid(255);
@@ -215,7 +194,7 @@ void tof_provider_init(void)
         ctx[i].idx = i;
         ctx[i].dev = &devs[i];
         ctx[i].i2c_mutex = i2c_mutex;
-        ctx[i].timeout = pdMS_TO_TICKS(GPIO_READY_TIMEOUT_MS);
+        ctx[i].timeout = pdMS_TO_TICKS(bus_cfg->gpio_ready_timeout_ms);
 
         char name[16];
         snprintf(name, sizeof(name), "vl53_%d", i);

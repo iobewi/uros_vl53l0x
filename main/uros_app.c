@@ -23,6 +23,7 @@
 #include <rmw_microros/rmw_microros.h>
 #include <sensor_msgs/msg/laser_scan.h>
 
+#include "tof_config.h"
 #include "tof_provider.h"
 #include "scan_builder.h"
 
@@ -41,18 +42,6 @@ static const char *TAG_CB   = "TIMER_CB";
 #define ANGLE_INC ((2.0f * (float)M_PI) / (float)N_BINS)
 
 static const char *SCAN_FRAME = CONFIG_MICRO_ROS_SCAN_FRAME_ID;
-
-// Indices CAD-aligned (84 brins)
-static const uint8_t TOF_BIN_IDX[TOF_COUNT] = {
-    CONFIG_MICRO_ROS_TOF_BIN_IDX_0,
-    CONFIG_MICRO_ROS_TOF_BIN_IDX_1,
-    CONFIG_MICRO_ROS_TOF_BIN_IDX_2,
-    CONFIG_MICRO_ROS_TOF_BIN_IDX_3,
-    CONFIG_MICRO_ROS_TOF_BIN_IDX_4,
-    CONFIG_MICRO_ROS_TOF_BIN_IDX_5,
-    CONFIG_MICRO_ROS_TOF_BIN_IDX_6,
-    CONFIG_MICRO_ROS_TOF_BIN_IDX_7
-};
 
 #include "led_status.h"
 
@@ -142,18 +131,19 @@ static void heap_guard_end(heap_guard_t before, const char *label)
 
 static bool validate_tof_bin_map(const scan_config_t *cfg)
 {
+    const tof_hw_config_t *hw_cfg = tof_get_hw_config();
     ESP_LOGI(TAG_TASK, "TOF bin mapping (tof -> bin):");
     for (int i = 0; i < TOF_COUNT; i++) {
-        ESP_LOGI(TAG_TASK, "  tof[%d] -> bin[%u]", i, (unsigned)TOF_BIN_IDX[i]);
+        ESP_LOGI(TAG_TASK, "  tof[%d] -> bin[%u]", i, (unsigned)hw_cfg[i].bin_idx);
     }
 
-#if !CONFIG_MICRO_ROS_TOF_BIN_ALLOW_DUPLICATES
+#if !CONFIG_TOF_BIN_ALLOW_DUPLICATES
     bool used[N_BINS] = {0};
 #endif
 
     bool valid = true;
     for (int i = 0; i < TOF_COUNT; i++) {
-        uint8_t idx = TOF_BIN_IDX[i];
+        uint8_t idx = hw_cfg[i].bin_idx;
         if ((int)idx >= cfg->bins) {
             ESP_LOGE(TAG_TASK,
                      "TOF bin index out of range (tof=%d idx=%u bins=%d)",
@@ -161,7 +151,7 @@ static bool validate_tof_bin_map(const scan_config_t *cfg)
             valid = false;
             continue;
         }
-#if !CONFIG_MICRO_ROS_TOF_BIN_ALLOW_DUPLICATES
+#if !CONFIG_TOF_BIN_ALLOW_DUPLICATES
         if (used[idx]) {
             ESP_LOGE(TAG_TASK,
                      "Duplicate TOF bin index detected (tof=%d idx=%u)",
@@ -251,7 +241,7 @@ static void scan_pub_task(void *arg)
 #if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
         heap_guard_t guard = heap_guard_begin();
 #endif
-        scan_builder_fill(&scan_msg, &scan_cfg, snap, TOF_BIN_IDX);
+        scan_builder_fill(&scan_msg, &scan_cfg, snap, tof_get_hw_config());
         scan_msg_set_timestamp(&scan_msg);
         rcl_ret_t pub_rc = rcl_publish(&publisher, &scan_msg, NULL);
         bool publish_ok = (pub_rc == RCL_RET_OK);
