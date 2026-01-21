@@ -14,9 +14,11 @@ endif()
 idf_component_register(
     SRCS
         "main.c"
+        "micro_ros_adapter.c"
         "uros_app.c"
         "led_status.c"
         "scan_builder.c"
+        "scan_engine.c"
         "tof_config.c"
         "tof_provider.c"
     INCLUDE_DIRS
