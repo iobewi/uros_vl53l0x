@@ -83,7 +83,12 @@ static const char *SCAN_FRAME = CONFIG_MICRO_ROS_SCAN_FRAME_ID;
         }                                                                              \
     } while (0)
 #else
-#define MICROROS_LOG_PUBLISH_EVERY_N(divider, tag, fmt, ...) do { (void)(divider); } while (0)
+#define MICROROS_LOG_PUBLISH_EVERY_N(divider, tag, fmt, ...) \
+    do {                                                    \
+        (void)(divider);                                   \
+        (void)(tag);                                       \
+        (void)(fmt);                                       \
+    } while (0)
 #endif
 
 __attribute__((weak)) rmw_ret_t rmw_uros_set_entity_destroy_session_timeout(int64_t timeout_ms);
@@ -197,7 +202,7 @@ static void scan_msg_set_timestamp(sensor_msgs__msg__LaserScan *msg)
 static void log_rcl_failure(const char *tag, const char *label, rcl_ret_t rc)
 {
     rcl_error_string_t err = rcl_get_error_string();
-    if (err.str != NULL && err.str[0] != '\0') {
+    if (err.str[0] != '\0') {
         ESP_LOGW(tag, "%s failed: %d (%s)", label, (int)rc, err.str);
     } else {
         ESP_LOGW(tag, "%s failed: %d", label, (int)rc);
