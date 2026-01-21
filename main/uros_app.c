@@ -233,16 +233,25 @@ static void micro_ros_task(void *arg)
         led_status_set_state(LED_STATUS_CONNECTED);
 
         uint32_t ping_div = 0;
+        uint32_t missed_pings = 0;
+        const uint32_t startup_grace_ms = 1500;
+        vTaskDelay(pdMS_TO_TICKS(startup_grace_ms));
         while (true) {
             rcl_ret_t spin_ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(50));
             if (spin_ret != RCL_RET_OK) {
                 ESP_LOGE(TAG_TASK, "rclc_executor_spin_some() failed");
             }
             if ((ping_div++ % 20) == 0) {
-                if (rmw_uros_ping_agent(100, 1) != RMW_RET_OK) {
-                    ESP_LOGW(TAG_TASK, "micro-ROS agent lost, restarting session");
-                    led_status_set_state(LED_STATUS_WAITING);
-                    break;
+                if (rmw_uros_ping_agent(500, 2) != RMW_RET_OK) {
+                    missed_pings++;
+                    ESP_LOGW(TAG_TASK, "micro-ROS agent ping missed (%" PRIu32 "/3)", missed_pings);
+                    if (missed_pings >= 3) {
+                        ESP_LOGW(TAG_TASK, "micro-ROS agent lost, restarting session");
+                        led_status_set_state(LED_STATUS_WAITING);
+                        break;
+                    }
+                } else {
+                    missed_pings = 0;
                 }
             }
             vTaskDelay(pdMS_TO_TICKS(10));
