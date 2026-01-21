@@ -321,7 +321,7 @@ static void micro_ros_task(void *arg)
         rmw_qos_profile_t scan_qos = rmw_qos_profile_default;
         scan_qos.history = RMW_QOS_POLICY_HISTORY_KEEP_LAST;
         scan_qos.depth = 1;
-        scan_qos.reliability = CONFIG_MICRO_ROS_QOS_RELIABLE
+        scan_qos.reliability = MICRO_ROS_QOS_RELIABLE_ENABLED
                                    ? RMW_QOS_POLICY_RELIABILITY_RELIABLE
                                    : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
         scan_qos.durability = RMW_QOS_POLICY_DURABILITY_VOLATILE;
