@@ -86,6 +86,9 @@ static scan_config_t scan_cfg;
 static volatile uint32_t publish_failures = 0;
 static volatile bool publish_error_burst = false;
 static uint32_t publish_backoff_cycles = 0;
+static TaskHandle_t scan_pub_task_handle = NULL;
+static volatile bool scan_pub_task_enabled = false;
+static volatile bool scan_pub_task_stop = false;
 
 #define PUBLISH_BACKOFF_MAX_CYCLES 5U
 
@@ -128,47 +131,69 @@ static void scan_msg_set_timestamp(sensor_msgs__msg__LaserScan *msg)
     }
 }
 
+static void scan_pub_task(void *arg)
+{
+    (void)arg;
+
+    while (true) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (scan_pub_task_stop) {
+            break;
+        }
+        if (!scan_pub_task_enabled) {
+            continue;
+        }
+
+        if (publish_backoff_cycles > 0) {
+            publish_backoff_cycles--;
+            continue;
+        }
+
+        tof_sample_t snap[TOF_COUNT];
+        tof_provider_snapshot(snap);
+
+        scan_builder_fill(&scan_msg, &scan_cfg, snap, TOF_BIN_IDX);
+        scan_msg_set_timestamp(&scan_msg);
+        rcl_ret_t pub_rc = rcl_publish(&publisher, &scan_msg, NULL);
+        bool publish_ok = (pub_rc == RCL_RET_OK);
+        if (pub_rc != RCL_RET_OK) {
+            publish_failures++;
+            if (publish_backoff_cycles < PUBLISH_BACKOFF_MAX_CYCLES) {
+                publish_backoff_cycles++;
+            }
+            if ((publish_failures % 50) == 0) {
+                rcl_error_string_t err = rcl_get_error_string();
+                ESP_LOGW("RCSOFTCHECK", "rcl_publish() failed %u times (last=%d, reason=%s)",
+                         (unsigned)publish_failures, (int)pub_rc,
+                         err.str ? err.str : "unknown");
+                rcl_reset_error();
+            }
+            if (publish_failures >= 50) {
+                publish_error_burst = true;
+            }
+        } else if (publish_failures > 0) {
+            publish_failures = 0;
+            publish_error_burst = false;
+            publish_backoff_cycles = 0;
+        }
+
+        static uint32_t div = 0;
+        if (publish_ok && (div++ % 10) == 0) {
+            ESP_LOGI(TAG_CB, "Published %s (%d bins)", CONFIG_MICRO_ROS_TOPIC_NAME, N_BINS);
+        }
+    }
+
+    scan_pub_task_handle = NULL;
+    vTaskDelete(NULL);
+}
+
 static void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 {
     (void)last_call_time;
     if (timer == NULL) return;
 
-    if (publish_backoff_cycles > 0) {
-        publish_backoff_cycles--;
-        return;
-    }
-
-    tof_sample_t snap[TOF_COUNT];
-    tof_provider_snapshot(snap);
-
-    scan_builder_fill(&scan_msg, &scan_cfg, snap, TOF_BIN_IDX);
-    scan_msg_set_timestamp(&scan_msg);
-    rcl_ret_t pub_rc = rcl_publish(&publisher, &scan_msg, NULL);
-    bool publish_ok = (pub_rc == RCL_RET_OK);
-    if (pub_rc != RCL_RET_OK) {
-        publish_failures++;
-        if (publish_backoff_cycles < PUBLISH_BACKOFF_MAX_CYCLES) {
-            publish_backoff_cycles++;
-        }
-        if ((publish_failures % 50) == 0) {
-            rcl_error_string_t err = rcl_get_error_string();
-            ESP_LOGW("RCSOFTCHECK", "rcl_publish() failed %u times (last=%d, reason=%s)",
-                     (unsigned)publish_failures, (int)pub_rc,
-                     err.str ? err.str : "unknown");
-            rcl_reset_error();
-        }
-        if (publish_failures >= 50) {
-            publish_error_burst = true;
-        }
-    } else if (publish_failures > 0) {
-        publish_failures = 0;
-        publish_error_burst = false;
-        publish_backoff_cycles = 0;
-    }
-
-    static uint32_t div = 0;
-    if (publish_ok && (div++ % 10) == 0) {
-        ESP_LOGI(TAG_CB, "Published %s (%d bins)", CONFIG_MICRO_ROS_TOPIC_NAME, N_BINS);
+    if (scan_pub_task_handle != NULL) {
+        xTaskNotifyGive(scan_pub_task_handle);
     }
 }
 
@@ -265,6 +290,23 @@ static void micro_ros_task(void *arg)
         }
         scan_ready = true;
 
+        scan_pub_task_enabled = false;
+        scan_pub_task_stop = false;
+        BaseType_t scan_task_ok = xTaskCreatePinnedToCore(
+            scan_pub_task,
+            "scan_pub_task",
+            CONFIG_MICRO_ROS_APP_STACK,
+            NULL,
+            CONFIG_MICRO_ROS_APP_TASK_PRIO,
+            &scan_pub_task_handle,
+            1
+        );
+        if (scan_task_ok != pdPASS || scan_pub_task_handle == NULL) {
+            ESP_LOGE(TAG_TASK, "Failed to create scan publish task");
+            led_status_set_state(LED_STATUS_ERROR);
+            goto cleanup;
+        }
+
         RCCHECK_FAIL_GOTO(rclc_timer_init_default2(
             &timer,
             &support,
@@ -279,6 +321,7 @@ static void micro_ros_task(void *arg)
                           cleanup, init_failed);
         executor_ready = true;
         RCCHECK_FAIL_GOTO(rclc_executor_add_timer(&executor, &timer), cleanup, init_failed);
+        scan_pub_task_enabled = true;
 
         ESP_LOGI(TAG_TASK, "micro-ROS up: node=%s topic=%s period=%dms",
                  CONFIG_MICRO_ROS_NODE_NAME, CONFIG_MICRO_ROS_TOPIC_NAME, TIMER_PERIOD_MS);
@@ -309,6 +352,14 @@ static void micro_ros_task(void *arg)
         }
 
 cleanup:
+        if (scan_pub_task_handle != NULL) {
+            scan_pub_task_enabled = false;
+            scan_pub_task_stop = true;
+            xTaskNotifyGive(scan_pub_task_handle);
+            for (int i = 0; i < 10 && scan_pub_task_handle != NULL; i++) {
+                vTaskDelay(pdMS_TO_TICKS(10));
+            }
+        }
         if (executor_ready) {
             rc = rclc_executor_fini(&executor);
             if (rc != RCL_RET_OK) {
