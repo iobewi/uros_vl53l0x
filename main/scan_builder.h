@@ -24,7 +24,8 @@ typedef struct {
  *
  * This function initializes the LaserScan structure, sets all static fields
  * (frame_id, angle_min, angle_increment, angle_max, range limits), allocates
- * the ranges buffer once, and initializes all range values to NAN.
+ * the ranges buffer once, preallocates the (unused) intensities buffer,
+ * and initializes all range values to NAN.
  *
  * Intensities are not used and are left empty.
  *

@@ -7,6 +7,9 @@
 #include <inttypes.h>
 
 #include "esp_log.h"
+#if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
+#include "esp_heap_caps.h"
+#endif
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -93,6 +96,33 @@ static TaskHandle_t scan_pub_task_handle = NULL;
 static volatile bool scan_pub_task_enabled = false;
 static volatile bool scan_pub_task_stop = false;
 
+#if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
+typedef struct {
+    size_t free_bytes;
+    size_t largest_block;
+} heap_guard_t;
+
+static heap_guard_t heap_guard_begin(void)
+{
+    heap_guard_t guard = {
+        .free_bytes = heap_caps_get_free_size(MALLOC_CAP_DEFAULT),
+        .largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT),
+    };
+    return guard;
+}
+
+static void heap_guard_end(heap_guard_t before, const char *label)
+{
+    const size_t free_after = heap_caps_get_free_size(MALLOC_CAP_DEFAULT);
+    const size_t largest_after = heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT);
+    if (free_after != before.free_bytes || largest_after != before.largest_block) {
+        ESP_LOGE(TAG_TASK,
+                 "Heap changed during %s (free=%zu->%zu, largest=%zu->%zu)",
+                 label, before.free_bytes, free_after, before.largest_block, largest_after);
+    }
+}
+#endif
+
 #define PUBLISH_BACKOFF_MAX_CYCLES 5U
 
 static int max_bin_index(void)
@@ -155,6 +185,9 @@ static void scan_pub_task(void *arg)
         tof_sample_t snap[TOF_COUNT];
         tof_provider_snapshot(snap);
 
+#if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
+        heap_guard_t guard = heap_guard_begin();
+#endif
         scan_builder_fill(&scan_msg, &scan_cfg, snap, TOF_BIN_IDX);
         scan_msg_set_timestamp(&scan_msg);
         rcl_ret_t pub_rc = rcl_publish(&publisher, &scan_msg, NULL);
@@ -180,6 +213,9 @@ static void scan_pub_task(void *arg)
             publish_backoff_cycles = 0;
         }
 
+#if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
+        heap_guard_end(guard, "scan_publish_loop");
+#endif
         static uint32_t div = 0;
         if (publish_ok && (div++ % 10) == 0) {
             ESP_LOGI(TAG_CB, "Published %s (%d bins)", CONFIG_MICRO_ROS_TOPIC_NAME, N_BINS);

@@ -4,6 +4,40 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
+#include "esp_heap_caps.h"
+#include "esp_log.h"
+#endif
+
+#if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
+typedef struct {
+    size_t free_bytes;
+    size_t largest_block;
+} heap_guard_t;
+
+static const char *TAG = "scan_builder";
+
+static heap_guard_t heap_guard_begin(void)
+{
+    heap_guard_t guard = {
+        .free_bytes = heap_caps_get_free_size(MALLOC_CAP_DEFAULT),
+        .largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT),
+    };
+    return guard;
+}
+
+static void heap_guard_end(heap_guard_t before, const char *label)
+{
+    const size_t free_after = heap_caps_get_free_size(MALLOC_CAP_DEFAULT);
+    const size_t largest_after = heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT);
+    if (free_after != before.free_bytes || largest_after != before.largest_block) {
+        ESP_LOGE(TAG,
+                 "Heap changed during %s (free=%zu->%zu, largest=%zu->%zu)",
+                 label, before.free_bytes, free_after, before.largest_block, largest_after);
+    }
+}
+#endif
+
 bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cfg)
 {
     if (!msg || !cfg || !cfg->frame_id || cfg->bins <= 0) return false;
@@ -38,12 +72,17 @@ bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cf
     msg->ranges.size = (size_t)cfg->bins;
     msg->ranges.capacity = (size_t)cfg->bins;
 
-    msg->intensities.data = NULL;
+    msg->intensities.data = (float*)malloc(sizeof(float) * (size_t)cfg->bins);
+    if (!msg->intensities.data) {
+        sensor_msgs__msg__LaserScan__fini(msg);
+        return false;
+    }
     msg->intensities.size = 0;
-    msg->intensities.capacity = 0;
+    msg->intensities.capacity = (size_t)cfg->bins;
 
     for (int i = 0; i < cfg->bins; i++) {
         msg->ranges.data[i] = NAN;
+        msg->intensities.data[i] = 0.0f;
     }
 
     return true;
@@ -63,6 +102,9 @@ void scan_builder_fill(sensor_msgs__msg__LaserScan *msg,
 {
     if (!msg || !cfg || !samples || !idx_map || cfg->bins <= 0) return;
     if (!msg->ranges.data || msg->ranges.capacity < (size_t)cfg->bins) return;
+#if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
+    heap_guard_t guard = heap_guard_begin();
+#endif
 
     // Clear scan
     for (int i = 0; i < cfg->bins; i++) {
@@ -82,4 +124,7 @@ void scan_builder_fill(sensor_msgs__msg__LaserScan *msg,
 
         msg->ranges.data[idx] = r;
     }
+#if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
+    heap_guard_end(guard, "scan_builder_fill");
+#endif
 }
