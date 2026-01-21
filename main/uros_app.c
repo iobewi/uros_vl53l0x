@@ -156,12 +156,17 @@ static void micro_ros_task(void *arg)
         RCCHECK_GOTO(rclc_node_init_with_options(&node, CONFIG_MICRO_ROS_NODE_NAME, "", &support, &node_ops), cleanup);
         node_ready = true;
 
-        RCCHECK_GOTO(rclc_publisher_init_default(
+        rc = rclc_publisher_init_default(
             &publisher,
             &node,
             ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, LaserScan),
-            CONFIG_MICRO_ROS_TOPIC_NAME),
-            cleanup);
+            CONFIG_MICRO_ROS_TOPIC_NAME);
+        if (rc != RCL_RET_OK) {
+            ESP_LOGE("RCCHECK", "Failed status on line %d: %d. Aborting.", __LINE__, (int)rc);
+            led_status_set_state(LED_STATUS_ERROR);
+            publisher_ready = true;
+            goto cleanup;
+        }
         publisher_ready = true;
 
         int configured_max = max_bin_index();
