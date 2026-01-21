@@ -16,6 +16,9 @@ typedef struct {
     float range_min;
     float range_max;
 
+    float scan_time;
+    float time_increment;
+
     const char *frame_id;
 } scan_config_t;
 
@@ -23,8 +26,8 @@ typedef struct {
  * @brief Initialize a LaserScan message according to the provided scan configuration.
  *
  * This function initializes the LaserScan structure, sets all static fields
- * (frame_id, angle_min, angle_increment, angle_max, range limits), allocates
- * the ranges buffer once, preallocates the (unused) intensities buffer,
+ * (frame_id, angle_min, angle_increment, angle_max, range limits, timing),
+ * allocates the ranges buffer once, preallocates the (unused) intensities buffer,
  * and initializes all range values to NAN.
  *
  * Intensities are not used and are left empty.
@@ -33,7 +36,7 @@ typedef struct {
  *
  * @param msg   Pointer to the LaserScan message to initialize.
  * @param cfg   Scan configuration (bin count, angular layout, range limits,
- *              frame identifier).
+ *              scan timing, frame identifier).
  *
  * @return true on success, false on invalid parameters or allocation failure.
  */
@@ -64,7 +67,7 @@ void scan_builder_deinit(sensor_msgs__msg__LaserScan *msg);
  *
  * @param msg       Pointer to the LaserScan message to fill.
  * @param cfg       Scan configuration (bin count, angle_min, angle_increment,
- *                  range_min, range_max).
+ *                  range_min, range_max, scan timing).
  * @param samples   Snapshot array of TOF_COUNT ToF measurements.
  * @param idx_map   Mapping table: one LaserScan bin index per ToF sensor.
  */
