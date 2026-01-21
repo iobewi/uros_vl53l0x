@@ -251,8 +251,8 @@ static void micro_ros_task(void *arg)
             if (spin_ret != RCL_RET_OK) {
                 ESP_LOGE(TAG_TASK, "rclc_executor_spin_some() failed");
             }
-            if ((ping_div++ % 20) == 0) {
-                if (rmw_uros_ping_agent(500, 2) != RMW_RET_OK) {
+            if ((ping_div++ % 100) == 0) {
+                if (rmw_uros_ping_agent(1000, 1) != RMW_RET_OK) {
                     missed_pings++;
                     ESP_LOGW(TAG_TASK, "micro-ROS agent ping missed (%" PRIu32 "/3)", missed_pings);
                     if (missed_pings >= 3) {
