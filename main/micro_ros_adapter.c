@@ -452,6 +452,12 @@ cleanup:
             for (int i = 0; i < 10 && scan_pub_task_handle != NULL; i++) {
                 vTaskDelay(pdMS_TO_TICKS(10));
             }
+            if (scan_pub_task_handle != NULL) {
+                TaskHandle_t handle = scan_pub_task_handle;
+                ESP_LOGE(TAG_TASK, "scan_pub_task did not stop, forcing delete");
+                vTaskDelete(handle);
+                scan_pub_task_handle = NULL;
+            }
         }
         if (executor_ready) {
             rc = rclc_executor_fini(&executor);
