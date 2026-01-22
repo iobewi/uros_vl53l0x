@@ -382,6 +382,8 @@ static void micro_ros_task(void *arg)
         if (!log_ready) {
             ESP_LOGW(TAG_TASK, "Embedded log init failed after %d attempts", max_log_attempts);
         }
+#else
+        bool log_ready = false;
 #endif
 
         ESP_LOGI(TAG_TASK, "Creating publisher '%s'...", CONFIG_MICRO_ROS_TOPIC_NAME);
@@ -485,6 +487,8 @@ static void micro_ros_task(void *arg)
         } else {
             ESP_LOGW(TAG_TASK, "Embedded metrics init failed after %d attempts", max_metrics_attempts);
         }
+#else
+        bool metrics_ready = false;
 #endif
         scan_pub_task_enabled = true;
 
@@ -500,11 +504,15 @@ static void micro_ros_task(void *arg)
 
         const TickType_t ping_interval = pdMS_TO_TICKS(1000);
         const TickType_t metrics_interval = pdMS_TO_TICKS(CONFIG_MICRO_ROS_METRICS_LOG_PERIOD_MS);
+        const TickType_t log_retry_interval = pdMS_TO_TICKS(1000);
+        const TickType_t metrics_retry_interval = pdMS_TO_TICKS(1000);
         const uint32_t max_missed_pings = 3;
         uint32_t missed_pings = 0;
         uint32_t spin_failures = 0;
         TickType_t last_ping_tick = xTaskGetTickCount();
         TickType_t last_metrics_tick = last_ping_tick;
+        TickType_t last_log_retry_tick = last_ping_tick;
+        TickType_t last_metrics_retry_tick = last_ping_tick;
         int64_t last_loop_time_us = esp_timer_get_time();
         while (true) {
             int64_t now_loop_time_us = esp_timer_get_time();
@@ -531,6 +539,26 @@ static void micro_ros_task(void *arg)
                 rcl_reset_error();
             }
             TickType_t now_tick = xTaskGetTickCount();
+            if (!log_ready && (now_tick - last_log_retry_tick) >= log_retry_interval) {
+                last_log_retry_tick = now_tick;
+#if CONFIG_MICRO_ROS_LOG_ENABLE
+                if (embedded_log_init(&node, rcl_mutex)) {
+                    log_ready = true;
+                    ESP_LOGI(TAG_TASK, "Embedded log publisher initialized");
+                }
+#endif
+            }
+#if CONFIG_MICRO_ROS_METRICS_ENABLE
+            if (!metrics_ready && (now_tick - last_metrics_retry_tick) >= metrics_retry_interval) {
+                last_metrics_retry_tick = now_tick;
+                if (embedded_metrics_init(&node, &executor, &support, rcl_mutex)) {
+                    metrics_ready = true;
+                    embedded_metrics_set_xrce_reconnect_count(xrce_reconnect_count);
+                    embedded_metrics_set_pub_fail_count(publish_failures_total);
+                    ESP_LOGI(TAG_TASK, "Embedded metrics publisher initialized");
+                }
+            }
+#endif
             if ((now_tick - last_ping_tick) >= ping_interval) {
                 last_ping_tick = now_tick;
                 if (rmw_uros_ping_agent(1000, 1) != RMW_RET_OK) {
