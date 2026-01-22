@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "sdkconfig.h"
 
 #include "tof_provider.h"
@@ -12,6 +13,7 @@
 static const char *TAG = "SCAN_ENGINE";
 
 static tof_sample_t scan_engine_snapshot[TOF_COUNT];
+static bool scan_engine_time_fallback_logged = false;
 
 static int64_t scan_engine_default_time_provider(void)
 {
@@ -63,13 +65,25 @@ static void scan_engine_set_timestamp(scan_engine_t *e, sensor_msgs__msg__LaserS
     if (e != NULL && e->time_provider != NULL) {
         now_ns = e->time_provider();
     }
+    if (now_ns <= 0) {
+        int64_t fallback_ns = esp_timer_get_time() * 1000LL;
+        if (fallback_ns > 0) {
+            now_ns = fallback_ns;
+            if (!scan_engine_time_fallback_logged) {
+                ESP_LOGW(TAG, "Time sync unavailable, using esp_timer_get_time() fallback");
+                scan_engine_time_fallback_logged = true;
+            }
+        }
+    }
+
     if (now_ns > 0) {
         msg->header.stamp.sec = (int32_t)(now_ns / 1000000000LL);
         msg->header.stamp.nanosec = (uint32_t)(now_ns % 1000000000LL);
-    } else {
-        msg->header.stamp.sec = 0;
-        msg->header.stamp.nanosec = 0;
+        return;
     }
+
+    msg->header.stamp.sec = 0;
+    msg->header.stamp.nanosec = 0;
 }
 
 bool scan_engine_init(scan_engine_t *e, const scan_config_t *cfg, const tof_hw_config_t *hw_cfg)
