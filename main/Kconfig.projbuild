@@ -97,6 +97,14 @@ menu "micro-ROS application settings"
             Capture heap stats before/after scan_builder_fill() and publish to
             detect unexpected allocations on the periodic path.
 
+    config MICRO_ROS_SCAN_BUILDER_ALLOC_MALLOC
+        bool "Allow scan_builder to allocate buffers with malloc"
+        default n
+        help
+            Permit scan_builder_init() to allocate ranges/frame_id buffers when
+            the caller does not supply them. When disabled, the caller must
+            provide buffers and keep them alive for the LaserScan lifetime.
+
     config MICRO_ROS_STATUS_LED_ENABLE
         bool "Enable status LED for micro-ROS state"
         default y

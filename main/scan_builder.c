@@ -6,9 +6,6 @@
 
 #define SCAN_BINS_MAX CONFIG_MICRO_ROS_SCAN_BINS
 
-static float scan_ranges_storage[SCAN_BINS_MAX];
-static char scan_frame_id_storage[] = CONFIG_MICRO_ROS_SCAN_FRAME_ID;
-
 #if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -43,22 +40,66 @@ static void heap_guard_end(heap_guard_t before, const char *label)
 }
 #endif
 
-bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cfg)
+bool scan_builder_init(sensor_msgs__msg__LaserScan *msg,
+                       const scan_config_t *cfg,
+                       scan_builder_storage_t *storage)
 {
-    if (!msg || !cfg || !cfg->frame_id || cfg->bins <= 0) return false;
+    if (!msg || !cfg || !storage || !cfg->frame_id || cfg->bins <= 0) return false;
     if (cfg->bins > SCAN_BINS_MAX) return false;
 
     const size_t frame_len = strlen(cfg->frame_id);
-    if (frame_len >= sizeof(scan_frame_id_storage)) {
+
+    storage->owns_ranges_buffer = false;
+    storage->owns_frame_id_buffer = false;
+
+#if CONFIG_MICRO_ROS_SCAN_BUILDER_ALLOC_MALLOC
+    if (!storage->ranges_buffer) {
+        storage->ranges_buffer = calloc((size_t)cfg->bins, sizeof(float));
+        if (!storage->ranges_buffer) return false;
+        storage->ranges_capacity = (size_t)cfg->bins;
+        storage->owns_ranges_buffer = true;
+    }
+    if (!storage->frame_id_buffer) {
+        storage->frame_id_buffer = malloc(frame_len + 1);
+        if (!storage->frame_id_buffer) {
+            if (storage->owns_ranges_buffer) {
+                free(storage->ranges_buffer);
+                storage->ranges_buffer = NULL;
+                storage->ranges_capacity = 0;
+                storage->owns_ranges_buffer = false;
+            }
+            return false;
+        }
+        storage->frame_id_capacity = frame_len + 1;
+        storage->owns_frame_id_buffer = true;
+    }
+#else
+    if (!storage->ranges_buffer || !storage->frame_id_buffer) return false;
+#endif
+
+    if (storage->ranges_capacity < (size_t)cfg->bins ||
+        storage->frame_id_capacity < frame_len + 1) {
+        if (storage->owns_frame_id_buffer) {
+            free(storage->frame_id_buffer);
+            storage->frame_id_buffer = NULL;
+            storage->frame_id_capacity = 0;
+            storage->owns_frame_id_buffer = false;
+        }
+        if (storage->owns_ranges_buffer) {
+            free(storage->ranges_buffer);
+            storage->ranges_buffer = NULL;
+            storage->ranges_capacity = 0;
+            storage->owns_ranges_buffer = false;
+        }
         return false;
     }
 
     sensor_msgs__msg__LaserScan__init(msg);
 
-    memcpy(scan_frame_id_storage, cfg->frame_id, frame_len + 1);
-    msg->header.frame_id.data = scan_frame_id_storage;
+    memcpy(storage->frame_id_buffer, cfg->frame_id, frame_len + 1);
+    msg->header.frame_id.data = storage->frame_id_buffer;
     msg->header.frame_id.size = frame_len;
-    msg->header.frame_id.capacity = sizeof(scan_frame_id_storage);
+    msg->header.frame_id.capacity = storage->frame_id_capacity;
 
     msg->angle_min = cfg->angle_min;
     msg->angle_increment = cfg->angle_inc;
@@ -70,9 +111,9 @@ bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cf
     msg->time_increment = cfg->time_increment;
     msg->scan_time = cfg->scan_time;
 
-    msg->ranges.data = scan_ranges_storage;
+    msg->ranges.data = storage->ranges_buffer;
     msg->ranges.size = (size_t)cfg->bins;
-    msg->ranges.capacity = SCAN_BINS_MAX;
+    msg->ranges.capacity = storage->ranges_capacity;
 
     msg->intensities.data = NULL;
     msg->intensities.size = 0;
@@ -85,20 +126,29 @@ bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cf
     return true;
 }
 
-void scan_builder_deinit(sensor_msgs__msg__LaserScan *msg)
+void scan_builder_deinit(sensor_msgs__msg__LaserScan *msg, scan_builder_storage_t *storage)
 {
-    if (!msg) return;
+    if (!msg || !storage) return;
 
-    if (msg->header.frame_id.data == scan_frame_id_storage) {
-        msg->header.frame_id.data = NULL;
-        msg->header.frame_id.size = 0;
-        msg->header.frame_id.capacity = 0;
+    if (storage->owns_frame_id_buffer && storage->frame_id_buffer) {
+        free(storage->frame_id_buffer);
+        storage->frame_id_buffer = NULL;
+        storage->frame_id_capacity = 0;
+        storage->owns_frame_id_buffer = false;
     }
-    if (msg->ranges.data == scan_ranges_storage) {
-        msg->ranges.data = NULL;
-        msg->ranges.size = 0;
-        msg->ranges.capacity = 0;
+    if (storage->owns_ranges_buffer && storage->ranges_buffer) {
+        free(storage->ranges_buffer);
+        storage->ranges_buffer = NULL;
+        storage->ranges_capacity = 0;
+        storage->owns_ranges_buffer = false;
     }
+
+    msg->header.frame_id.data = NULL;
+    msg->header.frame_id.size = 0;
+    msg->header.frame_id.capacity = 0;
+    msg->ranges.data = NULL;
+    msg->ranges.size = 0;
+    msg->ranges.capacity = 0;
 
     sensor_msgs__msg__LaserScan__fini(msg);
 }
