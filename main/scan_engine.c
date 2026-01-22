@@ -14,6 +14,7 @@ static const char *TAG = "SCAN_ENGINE";
 
 static tof_sample_t scan_engine_snapshot[TOF_COUNT];
 static bool scan_engine_time_fallback_logged = false;
+static bool scan_engine_tof_map_logged = false;
 
 static int64_t scan_engine_default_time_provider(void)
 {
@@ -25,9 +26,12 @@ static bool validate_tof_bin_map(const scan_config_t *cfg, const tof_hw_config_t
     if (cfg == NULL || hw_cfg == NULL) {
         return false;
     }
-    ESP_LOGI(TAG, "TOF bin mapping (tof -> bin):");
-    for (int i = 0; i < TOF_COUNT; i++) {
-        ESP_LOGI(TAG, "  tof[%d] -> bin[%u]", i, (unsigned)hw_cfg[i].bin_idx);
+    if (!scan_engine_tof_map_logged) {
+        ESP_LOGI(TAG, "TOF bin mapping (tof -> bin):");
+        for (int i = 0; i < TOF_COUNT; i++) {
+            ESP_LOGI(TAG, "  tof[%d] -> bin[%u]", i, (unsigned)hw_cfg[i].bin_idx);
+        }
+        scan_engine_tof_map_logged = true;
     }
 
 #if !CONFIG_TOF_BIN_ALLOW_DUPLICATES
