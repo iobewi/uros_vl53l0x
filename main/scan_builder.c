@@ -72,17 +72,12 @@ bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cf
     msg->ranges.size = (size_t)cfg->bins;
     msg->ranges.capacity = (size_t)cfg->bins;
 
-    msg->intensities.data = (float*)malloc(sizeof(float) * (size_t)cfg->bins);
-    if (!msg->intensities.data) {
-        sensor_msgs__msg__LaserScan__fini(msg);
-        return false;
-    }
+    msg->intensities.data = NULL;
     msg->intensities.size = 0;
-    msg->intensities.capacity = (size_t)cfg->bins;
+    msg->intensities.capacity = 0;
 
     for (int i = 0; i < cfg->bins; i++) {
         msg->ranges.data[i] = NAN;
-        msg->intensities.data[i] = 0.0f;
     }
 
     return true;
