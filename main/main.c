@@ -39,7 +39,7 @@ void app_main(void)
 #error micro-ROS transports misconfigured (RMW_UXRCE_TRANSPORT_CUSTOM expected)
 #endif
 
-    // Start mock ToF provider (replace later with real VL53 implementation)
+    // Initialize ToF provider selected by build config (mock or VL53)
     tof_provider_init();
 
     // Start micro-ROS app (LaserScan publisher)
