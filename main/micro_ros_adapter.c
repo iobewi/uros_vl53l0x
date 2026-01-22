@@ -80,6 +80,9 @@ static const char *SCAN_FRAME = CONFIG_MICRO_ROS_SCAN_FRAME_ID;
 #define TIME_SYNC_TIMEOUT_MS 1000U
 #define TIME_SYNC_MAX_ATTEMPTS 5
 #define ENTITY_DESTROY_TIMEOUT_MS 200U
+#ifndef CONFIG_MICRO_ROS_METRICS_LOG_PERIOD_MS
+#define CONFIG_MICRO_ROS_METRICS_LOG_PERIOD_MS 10000U
+#endif
 
 #if CONFIG_MICRO_ROS_DEBUG_LOGS
 #define MICROROS_LOG_PUBLISH_EVERY_N(divider, tag, fmt, ...)                           \
@@ -432,10 +435,12 @@ static void micro_ros_task(void *arg)
         led_status_set_state(LED_STATUS_CONNECTED);
 
         const TickType_t ping_interval = pdMS_TO_TICKS(1000);
+        const TickType_t metrics_interval = pdMS_TO_TICKS(CONFIG_MICRO_ROS_METRICS_LOG_PERIOD_MS);
         const uint32_t max_missed_pings = 3;
         uint32_t missed_pings = 0;
         uint32_t spin_failures = 0;
         TickType_t last_ping_tick = xTaskGetTickCount();
+        TickType_t last_metrics_tick = last_ping_tick;
         while (true) {
             if (rcl_mutex != NULL) {
                 xSemaphoreTake(rcl_mutex, portMAX_DELAY);
@@ -480,6 +485,19 @@ static void micro_ros_task(void *arg)
                         publish_error_burst = false;
                     }
                 }
+            }
+            if (metrics_interval > 0 &&
+                (now_tick - last_metrics_tick) >= metrics_interval) {
+                last_metrics_tick = now_tick;
+                ESP_LOGI(TAG_TASK,
+                         "runtime metrics: publish_failures=%" PRIu32
+                         " scan_step_failures=%" PRIu32
+                         " agent_missed_pings=%" PRIu32
+                         " congestion_detected=%" PRIu32,
+                         publish_failures,
+                         scan_step_failures,
+                         agent_missed_pings,
+                         congestion_detected);
             }
             vTaskDelay(pdMS_TO_TICKS(10));
         }
