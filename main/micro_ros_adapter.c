@@ -11,7 +11,6 @@
 #include "esp_heap_caps.h"
 #endif
 #include "esp_system.h"
-#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -28,8 +27,6 @@
 #include "tof_config.h"
 #include "scan_builder.h"
 #include "scan_engine.h"
-#include "embedded_log.h"
-#include "embedded_metrics.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -42,14 +39,7 @@
 #endif
 
 #define TIMER_PERIOD_MS CONFIG_MICRO_ROS_TIMER_PERIOD_MS
-
-#if CONFIG_MICRO_ROS_METRICS_ENABLE
-#define MICRO_ROS_METRICS_HANDLES 1
-#else
-#define MICRO_ROS_METRICS_HANDLES 0
-#endif
-
-#define NUMBER_OF_HANDLES (1 + MICRO_ROS_METRICS_HANDLES)
+#define NUMBER_OF_HANDLES 1
 
 static const char *TAG_TASK = "MICRO_ROS";
 static const char *TAG_CB   = "TIMER_CB";
@@ -128,12 +118,10 @@ static scan_builder_storage_t scan_storage = {
 static scan_config_t scan_cfg;
 static scan_engine_t scan_engine;
 static volatile uint32_t publish_failures = 0;
-static volatile uint32_t publish_failures_total = 0;
 static volatile uint32_t scan_step_failures = 0;
 static volatile uint32_t agent_missed_pings = 0;
 static volatile uint32_t congestion_detected = 0;
 static volatile bool publish_error_burst = false;
-static uint32_t xrce_reconnect_count = 0;
 static uint32_t publish_backoff_cycles = 0;
 static TaskHandle_t scan_pub_task_handle = NULL;
 static volatile bool scan_pub_task_enabled = false;
@@ -253,10 +241,6 @@ static void scan_pub_task(void *arg)
         }
         if (!step_ok || pub_rc != RCL_RET_OK) {
             publish_failures++;
-            publish_failures_total++;
-#if CONFIG_MICRO_ROS_METRICS_ENABLE
-            embedded_metrics_set_pub_fail_count(publish_failures_total);
-#endif
             if (publish_backoff_cycles < PUBLISH_BACKOFF_MAX_CYCLES) {
                 publish_backoff_cycles++;
             }
@@ -358,19 +342,6 @@ static void micro_ros_task(void *arg)
                           cleanup, init_failed);
         node_ready = true;
 
-        rcl_mutex = xSemaphoreCreateMutex();
-        if (rcl_mutex == NULL) {
-            ESP_LOGE(TAG_TASK, "Failed to create RCL mutex");
-            led_status_set_state(LED_STATUS_ERROR);
-            goto cleanup;
-        }
-
-#if CONFIG_MICRO_ROS_LOG_ENABLE
-        if (!embedded_log_init(&node, rcl_mutex)) {
-            ESP_LOGW(TAG_TASK, "Failed to init embedded log publisher");
-        }
-#endif
-
         ESP_LOGI(TAG_TASK, "Creating publisher '%s'...", CONFIG_MICRO_ROS_TOPIC_NAME);
         // LaserScan QoS: BEST_EFFORT by default (configurable to RELIABLE) + KEEP_LAST(depth configurable)
         // + VOLATILE to avoid XRCE serial backpressure.
@@ -422,6 +393,12 @@ static void micro_ros_task(void *arg)
 
         scan_pub_task_enabled = false;
         scan_pub_task_stop = false;
+        rcl_mutex = xSemaphoreCreateMutex();
+        if (rcl_mutex == NULL) {
+            ESP_LOGE(TAG_TASK, "Failed to create RCL mutex");
+            led_status_set_state(LED_STATUS_ERROR);
+            goto cleanup;
+        }
         BaseType_t scan_task_ok = xTaskCreatePinnedToCore(
             scan_pub_task,
             "scan_pub_task",
@@ -451,26 +428,11 @@ static void micro_ros_task(void *arg)
                           cleanup, init_failed);
         executor_ready = true;
         RCCHECK_FAIL_GOTO(rclc_executor_add_timer(&executor, &timer), cleanup, init_failed);
-
-#if CONFIG_MICRO_ROS_METRICS_ENABLE
-        if (!embedded_metrics_init(&node, &executor, &support, rcl_mutex)) {
-            ESP_LOGW(TAG_TASK, "Failed to init embedded metrics publisher");
-        } else {
-            embedded_metrics_set_xrce_reconnect_count(xrce_reconnect_count);
-            embedded_metrics_set_pub_fail_count(publish_failures_total);
-        }
-#endif
         scan_pub_task_enabled = true;
 
         ESP_LOGI(TAG_TASK, "micro-ROS up: node=%s topic=%s period=%dms",
                  CONFIG_MICRO_ROS_NODE_NAME, CONFIG_MICRO_ROS_TOPIC_NAME, TIMER_PERIOD_MS);
         led_status_set_state(LED_STATUS_CONNECTED);
-
-#if CONFIG_MICRO_ROS_LOG_ENABLE
-        embedded_log_write(EMBEDDED_LOG_LEVEL_INFO, TAG_TASK,
-                           "micro-ROS up node=%s topic=%s", CONFIG_MICRO_ROS_NODE_NAME,
-                           CONFIG_MICRO_ROS_TOPIC_NAME);
-#endif
 
         const TickType_t ping_interval = pdMS_TO_TICKS(1000);
         const TickType_t metrics_interval = pdMS_TO_TICKS(CONFIG_MICRO_ROS_METRICS_LOG_PERIOD_MS);
@@ -479,16 +441,7 @@ static void micro_ros_task(void *arg)
         uint32_t spin_failures = 0;
         TickType_t last_ping_tick = xTaskGetTickCount();
         TickType_t last_metrics_tick = last_ping_tick;
-        int64_t last_loop_time_us = esp_timer_get_time();
         while (true) {
-            int64_t now_loop_time_us = esp_timer_get_time();
-            int64_t loop_dt_us = now_loop_time_us - last_loop_time_us;
-            last_loop_time_us = now_loop_time_us;
-#if CONFIG_MICRO_ROS_METRICS_ENABLE
-            if (loop_dt_us >= 0) {
-                embedded_metrics_set_loop_dt_us((uint32_t)loop_dt_us);
-            }
-#endif
             if (rcl_mutex != NULL) {
                 xSemaphoreTake(rcl_mutex, portMAX_DELAY);
             }
@@ -515,14 +468,6 @@ static void micro_ros_task(void *arg)
                              missed_pings, max_missed_pings);
                     if (missed_pings >= max_missed_pings) {
                         ESP_LOGW(TAG_TASK, "micro-ROS agent lost, restarting session");
-#if CONFIG_MICRO_ROS_LOG_ENABLE
-                        embedded_log_write(EMBEDDED_LOG_LEVEL_WARN, TAG_TASK,
-                                           "micro-ROS agent lost, restarting session");
-#endif
-                        xrce_reconnect_count++;
-#if CONFIG_MICRO_ROS_METRICS_ENABLE
-                        embedded_metrics_set_xrce_reconnect_count(xrce_reconnect_count);
-#endif
                         led_status_set_state(LED_STATUS_WAITING);
                         break;
                     }
@@ -589,12 +534,6 @@ cleanup:
                 log_rcl_failure(TAG_TASK, "rcl_timer_fini()", rc);
             }
         }
-#if CONFIG_MICRO_ROS_METRICS_ENABLE
-        embedded_metrics_deinit(&node);
-#endif
-#if CONFIG_MICRO_ROS_LOG_ENABLE
-        embedded_log_deinit(&node);
-#endif
         if (publisher_ready) {
             rc = rcl_publisher_fini(&publisher, &node);
             if (rc != RCL_RET_OK) {

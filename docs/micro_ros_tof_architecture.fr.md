@@ -72,13 +72,6 @@ app_main
   - `CONFIG_MICRO_ROS_PUBLISH_LOG_DIVIDER`, `CONFIG_MICRO_ROS_PUBLISH_ERROR_LOG_DIVIDER`,
     `CONFIG_MICRO_ROS_SCAN_STEP_ERROR_LOG_DIVIDER`, `CONFIG_MICRO_ROS_EXECUTOR_ERROR_LOG_DIVIDER`.
     【F:main/Kconfig.projbuild†L72-L98】
-
-### Logs embarqués & métriques (micro-ROS)
-- `CONFIG_MICRO_ROS_LOG_ENABLE`: active la publication de logs sur `/embedded/log`.【F:main/Kconfig.projbuild†L72-L76】
-- `CONFIG_MICRO_ROS_LOG_LEVEL_*`: niveau minimal publié (DEBUG/INFO/WARN/ERROR/FATAL).【F:main/Kconfig.projbuild†L78-L99】
-- `CONFIG_MICRO_ROS_LOG_THROTTLE_PER_SEC`: limite le nombre de logs par seconde (0 = off).【F:main/Kconfig.projbuild†L102-L108】
-- `CONFIG_MICRO_ROS_METRICS_ENABLE`: active les métriques sur `/embedded/metrics`.【F:main/Kconfig.projbuild†L110-L114】
-- `CONFIG_MICRO_ROS_METRICS_PERIOD_MS`: période des métriques (ms).【F:main/Kconfig.projbuild†L116-L122】
 - Gestion mémoire scan :
   - `CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD`, `CONFIG_MICRO_ROS_SCAN_BUILDER_ALLOC_MALLOC`.
     【F:main/Kconfig.projbuild†L100-L113】
@@ -129,23 +122,6 @@ app_main
   - `rmw_uros_epoch_nanos()` si la synchro est OK.
   - Fallback `esp_timer_get_time()` (log warning) si sync indisponible.
   【F:main/micro_ros_adapter.c†L383-L383】【F:main/scan_engine.c†L66-L90】
-
-## 3.1) Logs embarqués & métriques
-
-- **/embedded/log** (`std_msgs/String`)
-  - Format clé=valeur: `stamp=SEC.NSEC level=LEVEL(tag) tag=MODULE msg=...`.
-  - Filtrage par niveau + throttling par seconde.
-  - Buffer circulaire (boot sans agent) vidé au premier init réussi.
-  【F:main/embedded_log.c†L15-L237】
-
-- **/embedded/metrics** (`std_msgs/String`)
-  - Publie périodiquement: heap free/min, `loop_dt_us`, `xrce_reconnect_count`, `pub_fail_count`.
-  - Fréquence via `CONFIG_MICRO_ROS_METRICS_PERIOD_MS`.
-  【F:main/embedded_metrics.c†L15-L200】【F:main/Kconfig.projbuild†L116-L122】
-
-- **QoS**
-  - Best Effort + KEEP_LAST depth=5, VOLATILE.
-  【F:main/embedded_log.c†L173-L184】【F:main/embedded_metrics.c†L116-L127】
 
 ## 4) Provider ToF
 

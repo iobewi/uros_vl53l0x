@@ -12,4 +12,3 @@ Ce dépôt contient une application micro-ROS (ESP-IDF) qui publie un `LaserScan
 ### Autres ressources
 - Paramétrage des GPIOs/I2C/IRQ, bins, QoS et timing via Kconfig : voir `main/Kconfig.projbuild`.
 - Point d’entrée et flux d’exécution : `main/main.c` et `main/micro_ros_adapter.c`.
-- Logs embarqués et métriques micro-ROS : voir les sections dédiées dans la documentation.

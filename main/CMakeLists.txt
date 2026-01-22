@@ -22,8 +22,6 @@ idf_component_register(
         "micro_ros_adapter.c"
         "uros_app.c"
         "led_status.c"
-        "embedded_log.c"
-        "embedded_metrics.c"
         "scan_builder.c"
         "scan_engine.c"
         "tof_config.c"
