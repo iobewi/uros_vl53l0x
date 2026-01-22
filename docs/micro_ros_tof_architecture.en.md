@@ -72,9 +72,11 @@ app_main
   - `CONFIG_MICRO_ROS_PUBLISH_LOG_DIVIDER`, `CONFIG_MICRO_ROS_PUBLISH_ERROR_LOG_DIVIDER`,
     `CONFIG_MICRO_ROS_SCAN_STEP_ERROR_LOG_DIVIDER`, `CONFIG_MICRO_ROS_EXECUTOR_ERROR_LOG_DIVIDER`.
     【F:main/Kconfig.projbuild†L72-L98】
+  - `CONFIG_MICRO_ROS_METRICS_LOG_PERIOD_MS`: runtime metrics log period (ms).
+    【F:main/Kconfig.projbuild†L99-L105】
 - Scan memory behavior:
   - `CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD`, `CONFIG_MICRO_ROS_SCAN_BUILDER_ALLOC_MALLOC`.
-    【F:main/Kconfig.projbuild†L100-L113】
+    【F:main/Kconfig.projbuild†L107-L120】
 
 ### ToF (I2C, GPIOs, mapping)
 - `CONFIG_TOF_COUNT`: number of sensors, indexed 0..N-1.【F:main/Kconfig.projbuild†L140-L146】

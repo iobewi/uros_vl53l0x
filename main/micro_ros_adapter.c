@@ -80,7 +80,6 @@ static const char *SCAN_FRAME = CONFIG_MICRO_ROS_SCAN_FRAME_ID;
 #define TIME_SYNC_TIMEOUT_MS 1000U
 #define TIME_SYNC_MAX_ATTEMPTS 5
 #define ENTITY_DESTROY_TIMEOUT_MS 200U
-#define MICRO_ROS_METRICS_LOG_PERIOD_MS 10000U
 
 #if CONFIG_MICRO_ROS_DEBUG_LOGS
 #define MICROROS_LOG_PUBLISH_EVERY_N(divider, tag, fmt, ...)                           \
@@ -433,7 +432,7 @@ static void micro_ros_task(void *arg)
         led_status_set_state(LED_STATUS_CONNECTED);
 
         const TickType_t ping_interval = pdMS_TO_TICKS(1000);
-        const TickType_t metrics_interval = pdMS_TO_TICKS(MICRO_ROS_METRICS_LOG_PERIOD_MS);
+        const TickType_t metrics_interval = pdMS_TO_TICKS(CONFIG_MICRO_ROS_METRICS_LOG_PERIOD_MS);
         const uint32_t max_missed_pings = 3;
         uint32_t missed_pings = 0;
         uint32_t spin_failures = 0;
