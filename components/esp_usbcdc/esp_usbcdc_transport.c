@@ -13,7 +13,7 @@ bool esp_usbcdc_open(struct uxrCustomTransport* transport) {
     esp_err_t ret = esp_usbcdc_tinyusb_init_once(&tinyusb_config);
 
     if (ret == ESP_ERR_INVALID_ARG || ret == ESP_FAIL) {
-        return ret;
+        return false;
     }
 
     tinyusb_cdcacm_itf_t* cdc_port = (tinyusb_cdcacm_itf_t*)transport->args;
