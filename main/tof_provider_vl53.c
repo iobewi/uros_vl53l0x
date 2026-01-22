@@ -178,7 +178,6 @@ static void sensor_task(void *arg)
             delay_ticks += pdMS_TO_TICKS(backoff_ms);
         }
 
-        // Petite respiration (évite starvations)
         vTaskDelay(delay_ticks);
     }
 

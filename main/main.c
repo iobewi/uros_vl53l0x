@@ -32,7 +32,7 @@ void app_main(void)
         esp_usbcdc_read);
 
     if (ret != RMW_RET_OK) {
-        ESP_LOGE(TAG_MAIN, "Fail to set micro-ROS custom transport layer");
+        ESP_LOGE(TAG_MAIN, "Failed to set micro-ROS custom transport layer");
         return;
     }
 #else
