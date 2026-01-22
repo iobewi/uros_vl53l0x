@@ -8,6 +8,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
+#include "rcl/error_handling.h"
 #include "rmw_microros/rmw_microros.h"
 #include "rclc/rclc.h"
 #include "rmw/qos_profiles.h"
@@ -128,7 +129,9 @@ bool embedded_metrics_init(rcl_node_t *node,
         EMBEDDED_METRICS_TOPIC,
         &metrics_qos);
     if (rc != RCL_RET_OK) {
-        ESP_LOGW(TAG, "rclc_publisher_init() failed: %d", (int)rc);
+        rcl_error_string_t err = rcl_get_error_string();
+        ESP_LOGW(TAG, "rclc_publisher_init() failed: %d (%s)", (int)rc, err.str);
+        rcl_reset_error();
         return false;
     }
     metrics_publisher_ready = true;
@@ -143,7 +146,9 @@ bool embedded_metrics_init(rcl_node_t *node,
         embedded_metrics_timer_callback,
         true);
     if (rc != RCL_RET_OK) {
-        ESP_LOGW(TAG, "rclc_timer_init_default2() failed: %d", (int)rc);
+        rcl_error_string_t err = rcl_get_error_string();
+        ESP_LOGW(TAG, "rclc_timer_init_default2() failed: %d (%s)", (int)rc, err.str);
+        rcl_reset_error();
         (void)rcl_publisher_fini(&metrics_publisher, node);
         metrics_publisher_ready = false;
         std_msgs__msg__String__fini(&metrics_msg);
@@ -154,7 +159,9 @@ bool embedded_metrics_init(rcl_node_t *node,
 
     rc = rclc_executor_add_timer(executor, &metrics_timer);
     if (rc != RCL_RET_OK) {
-        ESP_LOGW(TAG, "rclc_executor_add_timer() failed: %d", (int)rc);
+        rcl_error_string_t err = rcl_get_error_string();
+        ESP_LOGW(TAG, "rclc_executor_add_timer() failed: %d (%s)", (int)rc, err.str);
+        rcl_reset_error();
         (void)rcl_timer_fini(&metrics_timer);
         metrics_timer_ready = false;
         (void)rcl_publisher_fini(&metrics_publisher, node);

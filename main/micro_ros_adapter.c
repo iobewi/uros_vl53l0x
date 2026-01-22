@@ -367,8 +367,10 @@ static void micro_ros_task(void *arg)
 
 #if CONFIG_MICRO_ROS_LOG_ENABLE
         const int max_log_attempts = 3;
+        bool log_ready = false;
         for (int attempt = 1; attempt <= max_log_attempts; attempt++) {
             if (embedded_log_init(&node, rcl_mutex)) {
+                log_ready = true;
                 break;
             }
             ESP_LOGW(TAG_TASK, "Embedded log init attempt %d/%d failed",
@@ -376,6 +378,9 @@ static void micro_ros_task(void *arg)
             if (attempt < max_log_attempts) {
                 vTaskDelay(pdMS_TO_TICKS(200));
             }
+        }
+        if (!log_ready) {
+            ESP_LOGW(TAG_TASK, "Embedded log init failed after %d attempts", max_log_attempts);
         }
 #endif
 
@@ -477,6 +482,8 @@ static void micro_ros_task(void *arg)
         if (metrics_ready) {
             embedded_metrics_set_xrce_reconnect_count(xrce_reconnect_count);
             embedded_metrics_set_pub_fail_count(publish_failures_total);
+        } else {
+            ESP_LOGW(TAG_TASK, "Embedded metrics init failed after %d attempts", max_metrics_attempts);
         }
 #endif
         scan_pub_task_enabled = true;
