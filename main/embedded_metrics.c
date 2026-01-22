@@ -94,9 +94,14 @@ static void embedded_metrics_timer_callback(rcl_timer_t *timer, int64_t last_cal
     if (metrics_rcl_mutex != NULL) {
         xSemaphoreTake(metrics_rcl_mutex, portMAX_DELAY);
     }
-    (void)rcl_publish(&metrics_publisher, &metrics_msg, NULL);
+    rcl_ret_t rc = rcl_publish(&metrics_publisher, &metrics_msg, NULL);
     if (metrics_rcl_mutex != NULL) {
         xSemaphoreGive(metrics_rcl_mutex);
+    }
+    if (rc != RCL_RET_OK) {
+        portENTER_CRITICAL(&metrics_lock);
+        metrics_pub_fail_count++;
+        portEXIT_CRITICAL(&metrics_lock);
     }
 }
 
