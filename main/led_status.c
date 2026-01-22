@@ -21,15 +21,41 @@ static uint8_t scale_brightness(uint8_t value)
 
 static void led_status_apply_color(uint8_t red, uint8_t green, uint8_t blue)
 {
+    static esp_err_t last_set_pixel_err = ESP_OK;
+    static esp_err_t last_refresh_err = ESP_OK;
+
     if (led_strip == NULL) {
         return;
     }
 
-    led_strip_set_pixel(led_strip, 0,
-                        scale_brightness(red),
-                        scale_brightness(green),
-                        scale_brightness(blue));
-    led_strip_refresh(led_strip);
+    esp_err_t err = led_strip_set_pixel(led_strip, 0,
+                                        scale_brightness(red),
+                                        scale_brightness(green),
+                                        scale_brightness(blue));
+    if (err != ESP_OK) {
+        if (last_set_pixel_err != err) {
+            ESP_LOGE(TAG, "Failed to set LED pixel: %s", esp_err_to_name(err));
+            last_set_pixel_err = err;
+        }
+        return;
+    }
+
+    if (last_set_pixel_err != ESP_OK) {
+        last_set_pixel_err = ESP_OK;
+    }
+
+    err = led_strip_refresh(led_strip);
+    if (err != ESP_OK) {
+        if (last_refresh_err != err) {
+            ESP_LOGE(TAG, "Failed to refresh LED strip: %s", esp_err_to_name(err));
+            last_refresh_err = err;
+        }
+        return;
+    }
+
+    if (last_refresh_err != ESP_OK) {
+        last_refresh_err = ESP_OK;
+    }
 }
 
 static void led_status_task(void *arg)
