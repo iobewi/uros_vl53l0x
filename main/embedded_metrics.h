@@ -7,7 +7,7 @@
 #include "freertos/semphr.h"
 #include "rcl/rcl.h"
 #include "rclc/executor.h"
-#include "rclc/support.h"
+#include "rclc/types.h"
 
 #ifdef __cplusplus
 extern "C" {
