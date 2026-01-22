@@ -97,6 +97,13 @@ menu "micro-ROS application settings"
         help
             Divider for rclc_executor_spin_some() failure logs. Set to 0 to disable.
 
+    config MICRO_ROS_METRICS_LOG_PERIOD_MS
+        int "Runtime metrics log period (ms)"
+        range 0 60000
+        default 10000
+        help
+            Period for logging runtime metrics to the console in milliseconds.
+
     config MICRO_ROS_SCAN_ALLOC_GUARD
         bool "Enable allocation guard for scan/publish loop"
         default n
