@@ -12,6 +12,7 @@
 #endif
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 
 #include <rcl/rcl.h>
@@ -111,6 +112,8 @@ static uint32_t publish_backoff_cycles = 0;
 static TaskHandle_t scan_pub_task_handle = NULL;
 static volatile bool scan_pub_task_enabled = false;
 static volatile bool scan_pub_task_stop = false;
+// RCL/RMW thread-safety is not guaranteed across tasks; serialize access to rcl_publish/spin.
+static SemaphoreHandle_t rcl_mutex = NULL;
 
 #if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
 typedef struct {
@@ -209,7 +212,13 @@ static void scan_pub_task(void *arg)
         rcl_ret_t pub_rc = RCL_RET_OK;
         bool publish_ok = false;
         if (step_ok) {
+            if (rcl_mutex != NULL) {
+                xSemaphoreTake(rcl_mutex, portMAX_DELAY);
+            }
             pub_rc = rcl_publish(&publisher, &scan_msg, NULL);
+            if (rcl_mutex != NULL) {
+                xSemaphoreGive(rcl_mutex);
+            }
             publish_ok = (pub_rc == RCL_RET_OK);
         }
         if (!step_ok || pub_rc != RCL_RET_OK) {
@@ -366,6 +375,12 @@ static void micro_ros_task(void *arg)
 
         scan_pub_task_enabled = false;
         scan_pub_task_stop = false;
+        rcl_mutex = xSemaphoreCreateMutex();
+        if (rcl_mutex == NULL) {
+            ESP_LOGE(TAG_TASK, "Failed to create RCL mutex");
+            led_status_set_state(LED_STATUS_ERROR);
+            goto cleanup;
+        }
         BaseType_t scan_task_ok = xTaskCreatePinnedToCore(
             scan_pub_task,
             "scan_pub_task",
@@ -406,7 +421,13 @@ static void micro_ros_task(void *arg)
         uint32_t missed_pings = 0;
         TickType_t last_ping_tick = xTaskGetTickCount();
         while (true) {
+            if (rcl_mutex != NULL) {
+                xSemaphoreTake(rcl_mutex, portMAX_DELAY);
+            }
             rcl_ret_t spin_ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(50));
+            if (rcl_mutex != NULL) {
+                xSemaphoreGive(rcl_mutex);
+            }
             if (spin_ret != RCL_RET_OK) {
                 ESP_LOGE(TAG_TASK, "rclc_executor_spin_some() failed");
                 rcl_reset_error();
@@ -458,6 +479,10 @@ cleanup:
                 vTaskDelete(handle);
                 scan_pub_task_handle = NULL;
             }
+        }
+        if (rcl_mutex != NULL) {
+            vSemaphoreDelete(rcl_mutex);
+            rcl_mutex = NULL;
         }
         if (executor_ready) {
             rc = rclc_executor_fini(&executor);
