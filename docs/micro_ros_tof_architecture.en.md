@@ -76,6 +76,13 @@ app_main
   - `CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD`, `CONFIG_MICRO_ROS_SCAN_BUILDER_ALLOC_MALLOC`.
     【F:main/Kconfig.projbuild†L100-L113】
 
+### Embedded logs & metrics (micro-ROS)
+- `CONFIG_MICRO_ROS_LOG_ENABLE`: enable `/embedded/log` publishing.【F:main/Kconfig.projbuild†L72-L76】
+- `CONFIG_MICRO_ROS_LOG_LEVEL_*`: minimum level (DEBUG/INFO/WARN/ERROR/FATAL).【F:main/Kconfig.projbuild†L78-L99】
+- `CONFIG_MICRO_ROS_LOG_THROTTLE_PER_SEC`: max logs per second (0 = off).【F:main/Kconfig.projbuild†L102-L108】
+- `CONFIG_MICRO_ROS_METRICS_ENABLE`: enable `/embedded/metrics`.【F:main/Kconfig.projbuild†L110-L114】
+- `CONFIG_MICRO_ROS_METRICS_PERIOD_MS`: metrics period (ms).【F:main/Kconfig.projbuild†L116-L122】
+
 ### ToF (I2C, GPIOs, mapping)
 - `CONFIG_TOF_COUNT`: number of sensors, indexed 0..N-1.【F:main/Kconfig.projbuild†L140-L146】
 - `CONFIG_TOF_BIN_ALLOW_DUPLICATES`: allow duplicate bin indices
@@ -122,6 +129,23 @@ app_main
   - `rmw_uros_epoch_nanos()` when time sync succeeds.
   - Fallback to `esp_timer_get_time()` (warning logged) if sync unavailable.
   【F:main/micro_ros_adapter.c†L383-L383】【F:main/scan_engine.c†L66-L90】
+
+## 3.1) Embedded logs & metrics
+
+- **/embedded/log** (`std_msgs/String`)
+  - Key-value format: `stamp=SEC.NSEC level=LEVEL(tag) tag=MODULE msg=...`.
+  - Level filtering + per-second throttling.
+  - Ring buffer at boot (no agent) flushed on first successful init.
+  【F:main/embedded_log.c†L15-L237】
+
+- **/embedded/metrics** (`std_msgs/String`)
+  - Periodic payload: heap free/min, `loop_dt_us`, `xrce_reconnect_count`, `pub_fail_count`.
+  - Frequency via `CONFIG_MICRO_ROS_METRICS_PERIOD_MS`.
+  【F:main/embedded_metrics.c†L15-L200】【F:main/Kconfig.projbuild†L116-L122】
+
+- **QoS**
+  - Best Effort + KEEP_LAST depth=5, VOLATILE.
+  【F:main/embedded_log.c†L173-L184】【F:main/embedded_metrics.c†L116-L127】
 
 ## 4) ToF provider behavior
 
