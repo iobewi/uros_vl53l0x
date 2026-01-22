@@ -71,6 +71,9 @@ typedef struct {
 static void sensor_task(void *arg)
 {
     sensor_task_ctx_t *ctx = (sensor_task_ctx_t *)arg;
+    uint32_t consecutive_errors = 0;
+    const uint32_t backoff_base_ms = 5;
+    const uint32_t backoff_max_ms = 100;
 
     while (1) {
         VL53L0X_RangingMeasurementData_t data = {0};
@@ -78,6 +81,8 @@ static void sensor_task(void *arg)
         bool valid = false;
         uint8_t status = 255;
         float range_m = NAN;
+        bool gpio_timeout = false;
+        bool i2c_timeout = false;
 
         // Attend l’IRQ "data ready" via GPIO
         esp_err_t err = vl53l0x_wait_gpio_ready(ctx->dev, ctx->timeout);
@@ -99,18 +104,41 @@ static void sensor_task(void *arg)
                 status = 250;
                 valid = false;
                 range_m = NAN;
+                i2c_timeout = true;
             }
         } else {
             // gpio_ready timeout ou autre
             status = 251;
             valid = false;
             range_m = NAN;
+            gpio_timeout = true;
         }
 
         update_one(ctx->idx, valid, status, range_m);
 
+        if (gpio_timeout || i2c_timeout) {
+            consecutive_errors++;
+        } else {
+            consecutive_errors = 0;
+        }
+
+        TickType_t delay_ticks = pdMS_TO_TICKS(2);
+        if (consecutive_errors > 0) {
+            uint32_t backoff_ms = backoff_base_ms;
+            uint32_t shift = consecutive_errors - 1;
+            if (shift < 31) {
+                backoff_ms <<= shift;
+            } else {
+                backoff_ms = backoff_max_ms;
+            }
+            if (backoff_ms > backoff_max_ms) {
+                backoff_ms = backoff_max_ms;
+            }
+            delay_ticks += pdMS_TO_TICKS(backoff_ms);
+        }
+
         // Petite respiration (évite starvations)
-        vTaskDelay(pdMS_TO_TICKS(2));
+        vTaskDelay(delay_ticks);
     }
 }
 
