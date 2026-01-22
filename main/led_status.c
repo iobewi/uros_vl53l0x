@@ -123,7 +123,10 @@ bool led_status_start(void)
 #endif
 
 #if defined(CONFIG_LED_STRIP_INVERT_OUT) || defined(LED_STRIP_FLAG_INVERT_OUT)
-    strip_config.flags.invert_out = false;
+    /* ESP-IDF variants use either a Kconfig option or a flag to request output inversion.
+     * When either symbol is available, honor it by enabling invert_out to keep behavior
+     * consistent across ESP-IDF versions. */
+    strip_config.flags.invert_out = true;
 #endif
     led_strip_rmt_config_t rmt_config = {
         .clk_src = RMT_CLK_SRC_DEFAULT,
