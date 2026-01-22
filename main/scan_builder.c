@@ -4,6 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SCAN_BINS_MAX CONFIG_MICRO_ROS_SCAN_BINS
+
+static float scan_ranges_storage[SCAN_BINS_MAX];
+static char scan_frame_id_storage[] = CONFIG_MICRO_ROS_SCAN_FRAME_ID;
+
 #if CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -41,18 +46,19 @@ static void heap_guard_end(heap_guard_t before, const char *label)
 bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cfg)
 {
     if (!msg || !cfg || !cfg->frame_id || cfg->bins <= 0) return false;
+    if (cfg->bins > SCAN_BINS_MAX) return false;
+
+    const size_t frame_len = strlen(cfg->frame_id);
+    if (frame_len >= sizeof(scan_frame_id_storage)) {
+        return false;
+    }
 
     sensor_msgs__msg__LaserScan__init(msg);
 
-    const size_t frame_len = strlen(cfg->frame_id);
-    msg->header.frame_id.data = (char *)malloc(frame_len + 1);
-    if (!msg->header.frame_id.data) {
-        sensor_msgs__msg__LaserScan__fini(msg);
-        return false;
-    }
-    memcpy(msg->header.frame_id.data, cfg->frame_id, frame_len + 1);
+    memcpy(scan_frame_id_storage, cfg->frame_id, frame_len + 1);
+    msg->header.frame_id.data = scan_frame_id_storage;
     msg->header.frame_id.size = frame_len;
-    msg->header.frame_id.capacity = frame_len + 1;
+    msg->header.frame_id.capacity = sizeof(scan_frame_id_storage);
 
     msg->angle_min = cfg->angle_min;
     msg->angle_increment = cfg->angle_inc;
@@ -64,13 +70,9 @@ bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cf
     msg->time_increment = cfg->time_increment;
     msg->scan_time = cfg->scan_time;
 
-    msg->ranges.data = (float*)malloc(sizeof(float) * (size_t)cfg->bins);
-    if (!msg->ranges.data) {
-        sensor_msgs__msg__LaserScan__fini(msg);
-        return false;
-    }
+    msg->ranges.data = scan_ranges_storage;
     msg->ranges.size = (size_t)cfg->bins;
-    msg->ranges.capacity = (size_t)cfg->bins;
+    msg->ranges.capacity = SCAN_BINS_MAX;
 
     msg->intensities.data = NULL;
     msg->intensities.size = 0;
@@ -86,6 +88,17 @@ bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cf
 void scan_builder_deinit(sensor_msgs__msg__LaserScan *msg)
 {
     if (!msg) return;
+
+    if (msg->header.frame_id.data == scan_frame_id_storage) {
+        msg->header.frame_id.data = NULL;
+        msg->header.frame_id.size = 0;
+        msg->header.frame_id.capacity = 0;
+    }
+    if (msg->ranges.data == scan_ranges_storage) {
+        msg->ranges.data = NULL;
+        msg->ranges.size = 0;
+        msg->ranges.capacity = 0;
+    }
 
     sensor_msgs__msg__LaserScan__fini(msg);
 }
