@@ -19,6 +19,7 @@ static const TickType_t k_snapshot_timeout_ticks = pdMS_TO_TICKS(2);
 static const uint32_t k_snapshot_max_spins = 2000;
 static const uint32_t k_snapshot_odd_yield_threshold = 50;
 static const uint8_t k_snapshot_timeout_status = 252;
+static const TickType_t k_snapshot_log_interval_ticks = pdMS_TO_TICKS(1000);
 
 // État partagé (séquence par capteur).
 // Les writers mettent à jour chaque capteur avec un compteur de séquence.
@@ -26,6 +27,9 @@ static const uint8_t k_snapshot_timeout_status = 252;
 static tof_sample_t g_tof_samples[TOF_COUNT];
 static uint32_t g_tof_seq[TOF_COUNT];
 static portMUX_TYPE g_tof_mux = portMUX_INITIALIZER_UNLOCKED;
+static portMUX_TYPE g_timeout_log_mux = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t g_snapshot_timeout_count;
+static TickType_t g_snapshot_timeout_last_log_tick;
 
 static inline void update_one(int i, bool valid, uint8_t status, float range_m)
 {
@@ -47,6 +51,39 @@ static void mark_all_invalid(uint8_t status)
     }
 }
 
+static void log_snapshot_timeout(int idx, uint32_t seq)
+{
+    TickType_t now = xTaskGetTickCount();
+    uint32_t suppressed = 0;
+    bool should_log = false;
+
+    portENTER_CRITICAL(&g_timeout_log_mux);
+    g_snapshot_timeout_count++;
+    if (g_snapshot_timeout_last_log_tick == 0 ||
+        (now - g_snapshot_timeout_last_log_tick) >= k_snapshot_log_interval_ticks) {
+        suppressed = g_snapshot_timeout_count - 1;
+        g_snapshot_timeout_count = 0;
+        g_snapshot_timeout_last_log_tick = now;
+        should_log = true;
+    }
+    portEXIT_CRITICAL(&g_timeout_log_mux);
+
+    if (!should_log) {
+        return;
+    }
+
+    if (suppressed > 0) {
+        ESP_LOGW(TAG,
+                 "Snapshot timeout (idx=%d seq=%" PRIu32 ", suppressed=%" PRIu32 ")",
+                 idx,
+                 seq,
+                 suppressed);
+        return;
+    }
+
+    ESP_LOGW(TAG, "Snapshot timeout (idx=%d seq=%" PRIu32 ")", idx, seq);
+}
+
 void tof_provider_snapshot(tof_sample_t out[TOF_COUNT])
 {
     for (int i = 0; i < TOF_COUNT; i++) {
@@ -64,7 +101,7 @@ void tof_provider_snapshot(tof_sample_t out[TOF_COUNT])
                 }
                 if (spins >= k_snapshot_max_spins ||
                     (xTaskGetTickCount() - start) > k_snapshot_timeout_ticks) {
-                    ESP_LOGW(TAG, "Snapshot timeout (idx=%d seq=%" PRIu32 ")", i, seq1);
+                    log_snapshot_timeout(i, seq1);
                     out[i] = (tof_sample_t){
                         .valid = false,
                         .status = k_snapshot_timeout_status,
@@ -84,7 +121,7 @@ void tof_provider_snapshot(tof_sample_t out[TOF_COUNT])
             spins++;
             if (spins >= k_snapshot_max_spins ||
                 (xTaskGetTickCount() - start) > k_snapshot_timeout_ticks) {
-                ESP_LOGW(TAG, "Snapshot timeout (idx=%d seq=%" PRIu32 ")", i, seq2);
+                log_snapshot_timeout(i, seq2);
                 out[i] = (tof_sample_t){
                     .valid = false,
                     .status = k_snapshot_timeout_status,
