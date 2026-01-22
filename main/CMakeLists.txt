@@ -26,6 +26,7 @@ idf_component_register(
         "scan_engine.c"
         "tof_config.c"
         "tof_provider.c"
+        "tof_snapshot.c"
         ${TOF_PROVIDER_SRC}
     INCLUDE_DIRS
         "."

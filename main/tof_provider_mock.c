@@ -1,12 +1,13 @@
 #include "tof_provider.h"
 
 #include <math.h>
-#include <inttypes.h>
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/portmacro.h"
+
+#include "tof_snapshot.h"
 
 static const char *TAG = "TOF_PROVIDER_MOCK";
 static const TickType_t k_snapshot_timeout_ticks = pdMS_TO_TICKS(2);
@@ -21,9 +22,19 @@ static const TickType_t k_snapshot_log_interval_ticks = pdMS_TO_TICKS(1000);
 static tof_sample_t g_tof_samples[TOF_COUNT];
 static uint32_t g_tof_seq[TOF_COUNT];
 static portMUX_TYPE g_tof_mux = portMUX_INITIALIZER_UNLOCKED;
-static portMUX_TYPE g_timeout_log_mux = portMUX_INITIALIZER_UNLOCKED;
-static uint32_t g_snapshot_timeout_count;
-static TickType_t g_snapshot_timeout_last_log_tick;
+static tof_snapshot_log_t g_snapshot_log = {
+    .log_mux = portMUX_INITIALIZER_UNLOCKED,
+    .timeout_count = 0,
+    .timeout_last_log_tick = 0,
+};
+
+static const tof_snapshot_config_t k_snapshot_config = {
+    .timeout_ticks = k_snapshot_timeout_ticks,
+    .max_spins = k_snapshot_max_spins,
+    .odd_yield_threshold = k_snapshot_odd_yield_threshold,
+    .timeout_status = k_snapshot_timeout_status,
+    .log_interval_ticks = k_snapshot_log_interval_ticks,
+};
 
 static inline float clampf(float x, float lo, float hi)
 {
@@ -45,88 +56,9 @@ static inline void update_one(int i, bool valid, uint8_t status, float range_m)
     portEXIT_CRITICAL(&g_tof_mux);
 }
 
-static void log_snapshot_timeout(int idx, uint32_t seq)
-{
-    TickType_t now = xTaskGetTickCount();
-    uint32_t suppressed = 0;
-    bool should_log = false;
-
-    portENTER_CRITICAL(&g_timeout_log_mux);
-    g_snapshot_timeout_count++;
-    if (g_snapshot_timeout_last_log_tick == 0 ||
-        (now - g_snapshot_timeout_last_log_tick) >= k_snapshot_log_interval_ticks) {
-        suppressed = g_snapshot_timeout_count - 1;
-        g_snapshot_timeout_count = 0;
-        g_snapshot_timeout_last_log_tick = now;
-        should_log = true;
-    }
-    portEXIT_CRITICAL(&g_timeout_log_mux);
-
-    if (!should_log) {
-        return;
-    }
-
-    if (suppressed > 0) {
-        ESP_LOGW(TAG,
-                 "Snapshot timeout (idx=%d seq=%" PRIu32 ", suppressed=%" PRIu32 ")",
-                 idx,
-                 seq,
-                 suppressed);
-        return;
-    }
-
-    ESP_LOGW(TAG, "Snapshot timeout (idx=%d seq=%" PRIu32 ")", idx, seq);
-}
-
 void tof_provider_snapshot(tof_sample_t out[TOF_COUNT])
 {
-    for (int i = 0; i < TOF_COUNT; i++) {
-        TickType_t start = xTaskGetTickCount();
-        uint32_t spins = 0;
-        uint32_t odd_spins = 0;
-        while (1) {
-            uint32_t seq1 = __atomic_load_n(&g_tof_seq[i], __ATOMIC_ACQUIRE);
-            if (seq1 & 1u) {
-                odd_spins++;
-                spins++;
-                if (odd_spins >= k_snapshot_odd_yield_threshold) {
-                    odd_spins = 0;
-                    vTaskDelay(1);
-                }
-                if (spins >= k_snapshot_max_spins ||
-                    (xTaskGetTickCount() - start) > k_snapshot_timeout_ticks) {
-                    log_snapshot_timeout(i, seq1);
-                    out[i] = (tof_sample_t){
-                        .valid = false,
-                        .status = k_snapshot_timeout_status,
-                        .range_m = NAN,
-                        .seq = seq1,
-                    };
-                    break;
-                }
-                continue;
-            }
-            tof_sample_t sample = g_tof_samples[i];
-            uint32_t seq2 = __atomic_load_n(&g_tof_seq[i], __ATOMIC_ACQUIRE);
-            if (seq1 == seq2 && !(seq2 & 1u)) {
-                out[i] = sample;
-                break;
-            }
-            spins++;
-            if (spins >= k_snapshot_max_spins ||
-                (xTaskGetTickCount() - start) > k_snapshot_timeout_ticks) {
-                log_snapshot_timeout(i, seq2);
-                out[i] = (tof_sample_t){
-                    .valid = false,
-                    .status = k_snapshot_timeout_status,
-                    .range_m = NAN,
-                    .seq = seq2,
-                };
-                break;
-            }
-            taskYIELD();
-        }
-    }
+    tof_snapshot_read(TAG, &k_snapshot_config, g_tof_samples, g_tof_seq, &g_snapshot_log, out);
 }
 
 static void mock_task(void *arg)
