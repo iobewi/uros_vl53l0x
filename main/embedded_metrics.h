@@ -6,13 +6,12 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "rcl/rcl.h"
+#include "rclc/executor.h"
+#include "rclc/types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef struct rclc_executor_t rclc_executor_t;
-typedef struct rclc_support_t rclc_support_t;
 
 bool embedded_metrics_init(rcl_node_t *node,
                            rclc_executor_t *executor,
