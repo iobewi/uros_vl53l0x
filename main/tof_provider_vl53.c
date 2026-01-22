@@ -103,6 +103,7 @@ typedef struct {
     vl53l0x_dev_t *dev;
     SemaphoreHandle_t i2c_mutex;
     TickType_t timeout;
+    volatile bool stop_requested;
 } sensor_task_ctx_t;
 
 static void sensor_task(void *arg)
@@ -112,7 +113,7 @@ static void sensor_task(void *arg)
     const uint32_t backoff_base_ms = 5;
     const uint32_t backoff_max_ms = 100;
 
-    while (1) {
+    while (!ctx->stop_requested) {
         VL53L0X_RangingMeasurementData_t data = {0};
 
         bool valid = false;
@@ -123,6 +124,9 @@ static void sensor_task(void *arg)
 
         // Attend l’IRQ "data ready" via GPIO
         esp_err_t err = vl53l0x_wait_gpio_ready(ctx->dev, ctx->timeout);
+        if (ctx->stop_requested) {
+            break;
+        }
         if (err == ESP_OK) {
             if (xSemaphoreTake(ctx->i2c_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
                 VL53L0X_Error st = VL53L0X_GetRangingMeasurementData(&ctx->dev->st, &data);
@@ -177,6 +181,8 @@ static void sensor_task(void *arg)
         // Petite respiration (évite starvations)
         vTaskDelay(delay_ticks);
     }
+
+    vTaskDelete(NULL);
 }
 
 void tof_provider_init(void)
@@ -256,6 +262,7 @@ void tof_provider_init(void)
         ctx[i].dev = &devs[i];
         ctx[i].i2c_mutex = i2c_mutex;
         ctx[i].timeout = pdMS_TO_TICKS(bus_cfg->gpio_ready_timeout_ms);
+        ctx[i].stop_requested = false;
 
         char name[16];
         snprintf(name, sizeof(name), "vl53_%d", i);
@@ -276,8 +283,14 @@ cleanup:
             stop_all_measurements(devs, started_devices);
         }
         for (int i = 0; i < TOF_COUNT; i++) {
+            ctx[i].stop_requested = true;
+        }
+        vTaskDelay(pdMS_TO_TICKS(20));
+        for (int i = 0; i < TOF_COUNT; i++) {
             if (task_handles[i] != NULL) {
-                vTaskDelete(task_handles[i]);
+                if (eTaskGetState(task_handles[i]) != eDeleted) {
+                    vTaskDelete(task_handles[i]);
+                }
                 task_handles[i] = NULL;
             }
         }
