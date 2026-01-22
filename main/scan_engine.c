@@ -11,6 +11,8 @@
 
 static const char *TAG = "SCAN_ENGINE";
 
+static tof_sample_t scan_engine_snapshot[TOF_COUNT];
+
 static int64_t scan_engine_default_time_provider(void)
 {
     return 0;
@@ -103,9 +105,8 @@ bool scan_engine_step(scan_engine_t *e, sensor_msgs__msg__LaserScan *out_msg)
         return false;
     }
 
-    tof_sample_t snap[TOF_COUNT];
-    tof_provider_snapshot(snap);
-    scan_builder_fill(out_msg, e->cfg, snap, e->hw_cfg);
+    tof_provider_snapshot(scan_engine_snapshot);
+    scan_builder_fill(out_msg, e->cfg, scan_engine_snapshot, e->hw_cfg);
     scan_engine_set_timestamp(e, out_msg);
 
     return true;
