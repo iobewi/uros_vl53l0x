@@ -97,7 +97,12 @@ static void embedded_metrics_timer_callback(rcl_timer_t *timer, int64_t last_cal
     if (metrics_rcl_mutex != NULL) {
         xSemaphoreTake(metrics_rcl_mutex, portMAX_DELAY);
     }
-    (void)rcl_publish(&metrics_publisher, &metrics_msg, NULL);
+    rcl_ret_t pub_rc = rcl_publish(&metrics_publisher, &metrics_msg, NULL);
+    if (pub_rc != RCL_RET_OK) {
+        rcl_error_string_t err = rcl_get_error_string();
+        ESP_LOGW(TAG, "rcl_publish() failed: %d (%s)", (int)pub_rc, err.str);
+        rcl_reset_error();
+    }
     if (metrics_rcl_mutex != NULL) {
         xSemaphoreGive(metrics_rcl_mutex);
     }
@@ -192,11 +197,21 @@ bool embedded_metrics_init(rcl_node_t *node,
 void embedded_metrics_deinit(rcl_node_t *node)
 {
     if (metrics_timer_ready) {
-        (void)rcl_timer_fini(&metrics_timer);
+        rcl_ret_t rc = rcl_timer_fini(&metrics_timer);
+        if (rc != RCL_RET_OK) {
+            rcl_error_string_t err = rcl_get_error_string();
+            ESP_LOGW(TAG, "rcl_timer_fini() failed: %d (%s)", (int)rc, err.str);
+            rcl_reset_error();
+        }
         metrics_timer_ready = false;
     }
     if (metrics_publisher_ready && node != NULL) {
-        (void)rcl_publisher_fini(&metrics_publisher, node);
+        rcl_ret_t rc = rcl_publisher_fini(&metrics_publisher, node);
+        if (rc != RCL_RET_OK) {
+            rcl_error_string_t err = rcl_get_error_string();
+            ESP_LOGW(TAG, "rcl_publisher_fini() failed: %d (%s)", (int)rc, err.str);
+            rcl_reset_error();
+        }
         metrics_publisher_ready = false;
     }
     if (metrics_msg_ready) {
