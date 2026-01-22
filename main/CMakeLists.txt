@@ -11,6 +11,11 @@ if(CONFIG_MICRO_ROS_STATUS_LED_ENABLE)
     list(APPEND PRIV_REQUIRES_LIST led_strip)
 endif()
 
+set(TOF_PROVIDER_SRC "tof_provider_vl53.c")
+if(CONFIG_TOF_PROVIDER_MOCK)
+    set(TOF_PROVIDER_SRC "tof_provider_mock.c")
+endif()
+
 idf_component_register(
     SRCS
         "main.c"
@@ -21,6 +26,7 @@ idf_component_register(
         "scan_engine.c"
         "tof_config.c"
         "tof_provider.c"
+        ${TOF_PROVIDER_SRC}
     INCLUDE_DIRS
         "."
     REQUIRES
