@@ -5,6 +5,8 @@
 
 #include "esp_log.h"
 
+static const uint32_t kSnapshotSpinBackoffInterval = 64;
+
 static void log_snapshot_timeout(const char *tag,
                                  const tof_snapshot_config_t *config,
                                  tof_snapshot_log_t *log_state,
@@ -73,6 +75,9 @@ void tof_snapshot_read(const char *tag,
                     };
                     break;
                 }
+                if (spins % kSnapshotSpinBackoffInterval == 0) {
+                    vTaskDelay(1);
+                }
                 continue;
             }
             tof_sample_t sample = samples[i];
@@ -92,6 +97,9 @@ void tof_snapshot_read(const char *tag,
                     .seq = seq2,
                 };
                 break;
+            }
+            if (spins % kSnapshotSpinBackoffInterval == 0) {
+                vTaskDelay(1);
             }
             taskYIELD();
         }
