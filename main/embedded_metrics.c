@@ -4,9 +4,11 @@
 #include <stdio.h>
 
 #include "esp_heap_caps.h"
+#include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
+#include "rcl/error_handling.h"
 #include "rmw_microros/rmw_microros.h"
 #include "rclc/rclc.h"
 #include "rmw/qos_profiles.h"
@@ -16,6 +18,7 @@
 #define EMBEDDED_METRICS_LINE_MAX 256
 
 #if CONFIG_MICRO_ROS_METRICS_ENABLE
+static const char *TAG = "EMBEDDED_METRICS";
 
 static rcl_publisher_t metrics_publisher;
 static rcl_timer_t metrics_timer;
@@ -126,6 +129,9 @@ bool embedded_metrics_init(rcl_node_t *node,
         EMBEDDED_METRICS_TOPIC,
         &metrics_qos);
     if (rc != RCL_RET_OK) {
+        rcl_error_string_t err = rcl_get_error_string();
+        ESP_LOGW(TAG, "rclc_publisher_init() failed: %d (%s)", (int)rc, err.str);
+        rcl_reset_error();
         return false;
     }
     metrics_publisher_ready = true;
@@ -140,7 +146,15 @@ bool embedded_metrics_init(rcl_node_t *node,
         embedded_metrics_timer_callback,
         true);
     if (rc != RCL_RET_OK) {
-        (void)rcl_publisher_fini(&metrics_publisher, node);
+        rcl_error_string_t err = rcl_get_error_string();
+        ESP_LOGW(TAG, "rclc_timer_init_default2() failed: %d (%s)", (int)rc, err.str);
+        rcl_reset_error();
+        rcl_ret_t fini_rc = rcl_publisher_fini(&metrics_publisher, node);
+        if (fini_rc != RCL_RET_OK) {
+            rcl_error_string_t fini_err = rcl_get_error_string();
+            ESP_LOGW(TAG, "rcl_publisher_fini() failed: %d (%s)", (int)fini_rc, fini_err.str);
+            rcl_reset_error();
+        }
         metrics_publisher_ready = false;
         std_msgs__msg__String__fini(&metrics_msg);
         metrics_msg_ready = false;
@@ -150,9 +164,22 @@ bool embedded_metrics_init(rcl_node_t *node,
 
     rc = rclc_executor_add_timer(executor, &metrics_timer);
     if (rc != RCL_RET_OK) {
-        (void)rcl_timer_fini(&metrics_timer);
+        rcl_error_string_t err = rcl_get_error_string();
+        ESP_LOGW(TAG, "rclc_executor_add_timer() failed: %d (%s)", (int)rc, err.str);
+        rcl_reset_error();
+        rcl_ret_t fini_rc = rcl_timer_fini(&metrics_timer);
+        if (fini_rc != RCL_RET_OK) {
+            rcl_error_string_t fini_err = rcl_get_error_string();
+            ESP_LOGW(TAG, "rcl_timer_fini() failed: %d (%s)", (int)fini_rc, fini_err.str);
+            rcl_reset_error();
+        }
         metrics_timer_ready = false;
-        (void)rcl_publisher_fini(&metrics_publisher, node);
+        fini_rc = rcl_publisher_fini(&metrics_publisher, node);
+        if (fini_rc != RCL_RET_OK) {
+            rcl_error_string_t fini_err = rcl_get_error_string();
+            ESP_LOGW(TAG, "rcl_publisher_fini() failed: %d (%s)", (int)fini_rc, fini_err.str);
+            rcl_reset_error();
+        }
         metrics_publisher_ready = false;
         std_msgs__msg__String__fini(&metrics_msg);
         metrics_msg_ready = false;
