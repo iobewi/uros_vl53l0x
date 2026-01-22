@@ -1,8 +1,6 @@
 #include "tof_provider.h"
 
 #include <math.h>
-#include <string.h>
-
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_err.h"
@@ -17,51 +15,48 @@
 
 static const char *TAG = "TOF_PROVIDER_VL53";
 
-// État partagé (double buffer).
-// Les writers ne modifient jamais le buffer "actif". Ils écrivent dans le buffer
-// inactif, puis publient l’index actif de façon atomique. Le snapshot lit
-// uniquement le buffer actif sans verrou (pas de blocage dans le callback timer).
-static tof_sample_t g_tof_buffers[2][TOF_COUNT];
-static volatile uint32_t g_tof_active_index = 0;
+// État partagé (séquence par capteur).
+// Les writers mettent à jour chaque capteur avec un compteur de séquence.
+// Le snapshot lit chaque capteur sans verrou via un double-check de séquence.
+static tof_sample_t g_tof_samples[TOF_COUNT];
+static uint32_t g_tof_seq[TOF_COUNT];
 static portMUX_TYPE g_tof_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static inline void update_one(int i, bool valid, uint8_t status, float range_m)
 {
     portENTER_CRITICAL(&g_tof_mux);
-    uint32_t active = __atomic_load_n(&g_tof_active_index, __ATOMIC_RELAXED);
-    uint32_t back = 1u - active;
-    for (int j = 0; j < TOF_COUNT; j++) {
-        g_tof_buffers[back][j] = g_tof_buffers[active][j];
-    }
-    g_tof_buffers[back][i].valid = valid;
-    g_tof_buffers[back][i].status = status;
-    g_tof_buffers[back][i].range_m = range_m;
-    g_tof_buffers[back][i].seq++;
-    __atomic_store_n(&g_tof_active_index, back, __ATOMIC_RELEASE);
+    uint32_t seq = __atomic_load_n(&g_tof_seq[i], __ATOMIC_RELAXED);
+    __atomic_store_n(&g_tof_seq[i], seq + 1u, __ATOMIC_RELAXED);
+    g_tof_samples[i].valid = valid;
+    g_tof_samples[i].status = status;
+    g_tof_samples[i].range_m = range_m;
+    g_tof_samples[i].seq = seq + 2u;
+    __atomic_store_n(&g_tof_seq[i], seq + 2u, __ATOMIC_RELEASE);
     portEXIT_CRITICAL(&g_tof_mux);
 }
 
 static void mark_all_invalid(uint8_t status)
 {
-    portENTER_CRITICAL(&g_tof_mux);
-    uint32_t active = __atomic_load_n(&g_tof_active_index, __ATOMIC_RELAXED);
-    uint32_t back = 1u - active;
     for (int i = 0; i < TOF_COUNT; i++) {
-        g_tof_buffers[back][i] = g_tof_buffers[active][i];
-        g_tof_buffers[back][i].valid = false;
-        g_tof_buffers[back][i].status = status;
-        g_tof_buffers[back][i].range_m = NAN;
-        g_tof_buffers[back][i].seq++;
+        update_one(i, false, status, NAN);
     }
-    __atomic_store_n(&g_tof_active_index, back, __ATOMIC_RELEASE);
-    portEXIT_CRITICAL(&g_tof_mux);
 }
 
 void tof_provider_snapshot(tof_sample_t out[TOF_COUNT])
 {
-    uint32_t active = __atomic_load_n(&g_tof_active_index, __ATOMIC_ACQUIRE);
     for (int i = 0; i < TOF_COUNT; i++) {
-        out[i] = g_tof_buffers[active][i];
+        while (1) {
+            uint32_t seq1 = __atomic_load_n(&g_tof_seq[i], __ATOMIC_ACQUIRE);
+            if (seq1 & 1u) {
+                continue;
+            }
+            tof_sample_t sample = g_tof_samples[i];
+            uint32_t seq2 = __atomic_load_n(&g_tof_seq[i], __ATOMIC_ACQUIRE);
+            if (seq1 == seq2 && !(seq2 & 1u)) {
+                out[i] = sample;
+                break;
+            }
+        }
     }
 }
 
