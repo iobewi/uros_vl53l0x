@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/portmacro.h"
@@ -183,6 +184,11 @@ bool embedded_log_init(rcl_node_t *node, SemaphoreHandle_t rcl_mutex)
     log_qos.depth = 5;
     log_qos.reliability = RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
     log_qos.durability = RMW_QOS_POLICY_DURABILITY_VOLATILE;
+
+    uint32_t heap_free = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    uint32_t heap_min_free = heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT);
+    ESP_LOGI(TAG, "Init log publisher topic=%s heap_free=%" PRIu32 " heap_min_free=%" PRIu32,
+             EMBEDDED_LOG_TOPIC, heap_free, heap_min_free);
 
     rcl_ret_t rc = rclc_publisher_init(
         &log_publisher,

@@ -127,6 +127,11 @@ bool embedded_metrics_init(rcl_node_t *node,
     metrics_qos.reliability = RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
     metrics_qos.durability = RMW_QOS_POLICY_DURABILITY_VOLATILE;
 
+    uint32_t heap_free = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    uint32_t heap_min_free = heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT);
+    ESP_LOGI(TAG, "Init metrics publisher topic=%s heap_free=%" PRIu32 " heap_min_free=%" PRIu32,
+             EMBEDDED_METRICS_TOPIC, heap_free, heap_min_free);
+
     rcl_ret_t rc = rclc_publisher_init(
         &metrics_publisher,
         node,
