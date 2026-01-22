@@ -1,5 +1,6 @@
 #pragma once
 #include <stdbool.h>
+#include <stddef.h>
 
 #include <sensor_msgs/msg/laser_scan.h>
 #include "tof_provider.h"
@@ -23,13 +24,29 @@ typedef struct {
     const char *frame_id;
 } scan_config_t;
 
+typedef struct {
+    float *ranges_buffer;
+    size_t ranges_capacity;
+    char *frame_id_buffer;
+    size_t frame_id_capacity;
+    bool owns_ranges_buffer;
+    bool owns_frame_id_buffer;
+} scan_builder_storage_t;
+
 /**
  * @brief Initialize a LaserScan message according to the provided scan configuration.
  *
  * This function initializes the LaserScan structure, sets all static fields
  * (frame_id, angle_min, angle_increment, angle_max, range limits, timing),
- * allocates the ranges buffer once, preallocates the (unused) intensities buffer,
+ * assigns the ranges/frame_id buffers, preallocates the (unused) intensities buffer,
  * and initializes all range values to NAN.
+ *
+ * Ownership model:
+ * - If storage provides non-NULL buffers, the caller retains ownership.
+ * - If buffers are NULL and CONFIG_MICRO_ROS_SCAN_BUILDER_ALLOC_MALLOC is enabled,
+ *   scan_builder_init allocates them with malloc and sets ownership flags in
+ *   storage; scan_builder_deinit will free them.
+ * - If buffers are NULL and malloc support is disabled, initialization fails.
  *
  * Intensities are not used and are left empty.
  *
@@ -38,10 +55,13 @@ typedef struct {
  * @param msg   Pointer to the LaserScan message to initialize.
  * @param cfg   Scan configuration (bin count, angular layout, range limits,
  *              scan timing, frame identifier).
+ * @param storage Storage buffers and ownership tracking for ranges and frame_id.
  *
  * @return true on success, false on invalid parameters or allocation failure.
  */
-bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cfg);
+bool scan_builder_init(sensor_msgs__msg__LaserScan *msg,
+                       const scan_config_t *cfg,
+                       scan_builder_storage_t *storage);
 
 /**
  * @brief Deinitialize a LaserScan message previously initialized by scan_builder_init().
@@ -51,8 +71,9 @@ bool scan_builder_init(sensor_msgs__msg__LaserScan *msg, const scan_config_t *cf
  * before reinitializing.
  *
  * @param msg   Pointer to the LaserScan message to deinitialize.
+ * @param storage Storage buffers and ownership tracking used at init time.
  */
-void scan_builder_deinit(sensor_msgs__msg__LaserScan *msg);
+void scan_builder_deinit(sensor_msgs__msg__LaserScan *msg, scan_builder_storage_t *storage);
 
 /**
  * @brief Populate a LaserScan message from a snapshot of ToF samples,

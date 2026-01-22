@@ -102,6 +102,16 @@ __attribute__((weak)) rmw_ret_t rmw_uros_set_entity_destroy_session_timeout(int6
 
 static rcl_publisher_t publisher;
 static sensor_msgs__msg__LaserScan scan_msg;
+static float scan_ranges_storage[N_BINS];
+static char scan_frame_id_storage[] = CONFIG_MICRO_ROS_SCAN_FRAME_ID;
+static scan_builder_storage_t scan_storage = {
+    .ranges_buffer = scan_ranges_storage,
+    .ranges_capacity = N_BINS,
+    .frame_id_buffer = scan_frame_id_storage,
+    .frame_id_capacity = sizeof(scan_frame_id_storage),
+    .owns_ranges_buffer = false,
+    .owns_frame_id_buffer = false,
+};
 static scan_config_t scan_cfg;
 static scan_engine_t scan_engine;
 static volatile uint32_t publish_failures = 0;
@@ -371,7 +381,7 @@ static void micro_ros_task(void *arg)
         scan_engine_ready = true;
         scan_engine_set_time_provider(&scan_engine, rmw_uros_epoch_nanos);
 
-        if (!scan_builder_init(&scan_msg, &scan_cfg)) {
+        if (!scan_builder_init(&scan_msg, &scan_cfg, &scan_storage)) {
             ESP_LOGE(TAG_TASK, "scan_builder_init() failed (malloc?)");
             led_status_set_state(LED_STATUS_ERROR);
             goto cleanup;
@@ -537,7 +547,7 @@ cleanup:
             }
         }
         if (scan_ready) {
-            scan_builder_deinit(&scan_msg);
+            scan_builder_deinit(&scan_msg, &scan_storage);
         }
         if (scan_engine_ready) {
             scan_engine_deinit(&scan_engine);
