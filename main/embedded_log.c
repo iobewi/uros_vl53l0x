@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/portmacro.h"
 #include "rmw_microros/rmw_microros.h"
@@ -19,6 +20,7 @@
 #define EMBEDDED_LOG_BUFFER_SIZE 8
 
 #if CONFIG_MICRO_ROS_LOG_ENABLE
+static const char *TAG = "EMBEDDED_LOG";
 
 #if CONFIG_MICRO_ROS_LOG_LEVEL_DEBUG
 #define EMBEDDED_LOG_LEVEL_MIN EMBEDDED_LOG_LEVEL_DEBUG
@@ -183,6 +185,7 @@ bool embedded_log_init(rcl_node_t *node, SemaphoreHandle_t rcl_mutex)
         EMBEDDED_LOG_TOPIC,
         &log_qos);
     if (rc != RCL_RET_OK) {
+        ESP_LOGW(TAG, "rclc_publisher_init() failed: %d", (int)rc);
         return false;
     }
 

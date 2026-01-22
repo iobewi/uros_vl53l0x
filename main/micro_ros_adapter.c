@@ -366,8 +366,16 @@ static void micro_ros_task(void *arg)
         }
 
 #if CONFIG_MICRO_ROS_LOG_ENABLE
-        if (!embedded_log_init(&node, rcl_mutex)) {
-            ESP_LOGW(TAG_TASK, "Failed to init embedded log publisher");
+        const int max_log_attempts = 3;
+        for (int attempt = 1; attempt <= max_log_attempts; attempt++) {
+            if (embedded_log_init(&node, rcl_mutex)) {
+                break;
+            }
+            ESP_LOGW(TAG_TASK, "Embedded log init attempt %d/%d failed",
+                     attempt, max_log_attempts);
+            if (attempt < max_log_attempts) {
+                vTaskDelay(pdMS_TO_TICKS(200));
+            }
         }
 #endif
 
@@ -453,9 +461,20 @@ static void micro_ros_task(void *arg)
         RCCHECK_FAIL_GOTO(rclc_executor_add_timer(&executor, &timer), cleanup, init_failed);
 
 #if CONFIG_MICRO_ROS_METRICS_ENABLE
-        if (!embedded_metrics_init(&node, &executor, &support, rcl_mutex)) {
-            ESP_LOGW(TAG_TASK, "Failed to init embedded metrics publisher");
-        } else {
+        const int max_metrics_attempts = 3;
+        bool metrics_ready = false;
+        for (int attempt = 1; attempt <= max_metrics_attempts; attempt++) {
+            if (embedded_metrics_init(&node, &executor, &support, rcl_mutex)) {
+                metrics_ready = true;
+                break;
+            }
+            ESP_LOGW(TAG_TASK, "Embedded metrics init attempt %d/%d failed",
+                     attempt, max_metrics_attempts);
+            if (attempt < max_metrics_attempts) {
+                vTaskDelay(pdMS_TO_TICKS(200));
+            }
+        }
+        if (metrics_ready) {
             embedded_metrics_set_xrce_reconnect_count(xrce_reconnect_count);
             embedded_metrics_set_pub_fail_count(publish_failures_total);
         }

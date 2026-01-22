@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "esp_heap_caps.h"
+#include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
@@ -16,6 +17,7 @@
 #define EMBEDDED_METRICS_LINE_MAX 256
 
 #if CONFIG_MICRO_ROS_METRICS_ENABLE
+static const char *TAG = "EMBEDDED_METRICS";
 
 static rcl_publisher_t metrics_publisher;
 static rcl_timer_t metrics_timer;
@@ -126,6 +128,7 @@ bool embedded_metrics_init(rcl_node_t *node,
         EMBEDDED_METRICS_TOPIC,
         &metrics_qos);
     if (rc != RCL_RET_OK) {
+        ESP_LOGW(TAG, "rclc_publisher_init() failed: %d", (int)rc);
         return false;
     }
     metrics_publisher_ready = true;
@@ -140,6 +143,7 @@ bool embedded_metrics_init(rcl_node_t *node,
         embedded_metrics_timer_callback,
         true);
     if (rc != RCL_RET_OK) {
+        ESP_LOGW(TAG, "rclc_timer_init_default2() failed: %d", (int)rc);
         (void)rcl_publisher_fini(&metrics_publisher, node);
         metrics_publisher_ready = false;
         std_msgs__msg__String__fini(&metrics_msg);
@@ -150,6 +154,7 @@ bool embedded_metrics_init(rcl_node_t *node,
 
     rc = rclc_executor_add_timer(executor, &metrics_timer);
     if (rc != RCL_RET_OK) {
+        ESP_LOGW(TAG, "rclc_executor_add_timer() failed: %d", (int)rc);
         (void)rcl_timer_fini(&metrics_timer);
         metrics_timer_ready = false;
         (void)rcl_publisher_fini(&metrics_publisher, node);
