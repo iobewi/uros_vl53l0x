@@ -155,9 +155,12 @@ static void embedded_log_publish_entry(const embedded_log_entry_t *entry)
     if (log_rcl_mutex != NULL) {
         xSemaphoreTake(log_rcl_mutex, portMAX_DELAY);
     }
-    (void)rcl_publish(&log_publisher, &log_msg, NULL);
+    rcl_ret_t rc = rcl_publish(&log_publisher, &log_msg, NULL);
     if (log_rcl_mutex != NULL) {
         xSemaphoreGive(log_rcl_mutex);
+    }
+    if (rc != RCL_RET_OK) {
+        return;
     }
 }
 
@@ -204,7 +207,10 @@ void embedded_log_deinit(rcl_node_t *node)
         return;
     }
 
-    (void)rcl_publisher_fini(&log_publisher, node);
+    rcl_ret_t rc = rcl_publisher_fini(&log_publisher, node);
+    if (rc != RCL_RET_OK) {
+        log_publisher_ready = false;
+    }
     if (log_msg_ready) {
         std_msgs__msg__String__fini(&log_msg);
         log_msg_ready = false;
