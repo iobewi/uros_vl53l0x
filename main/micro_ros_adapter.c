@@ -504,15 +504,20 @@ static void micro_ros_task(void *arg)
 
         const TickType_t ping_interval = pdMS_TO_TICKS(1000);
         const TickType_t metrics_interval = pdMS_TO_TICKS(CONFIG_MICRO_ROS_METRICS_LOG_PERIOD_MS);
-        const TickType_t log_retry_interval = pdMS_TO_TICKS(1000);
-        const TickType_t metrics_retry_interval = pdMS_TO_TICKS(1000);
+        const TickType_t log_retry_interval_min = pdMS_TO_TICKS(1000);
+        const TickType_t metrics_retry_interval_min = pdMS_TO_TICKS(1000);
+        const TickType_t retry_interval_max = pdMS_TO_TICKS(30000);
         const uint32_t max_missed_pings = 3;
         uint32_t missed_pings = 0;
         uint32_t spin_failures = 0;
         TickType_t last_ping_tick = xTaskGetTickCount();
         TickType_t last_metrics_tick = last_ping_tick;
+        TickType_t log_retry_interval = log_retry_interval_min;
+        TickType_t metrics_retry_interval = metrics_retry_interval_min;
         TickType_t last_log_retry_tick = last_ping_tick;
         TickType_t last_metrics_retry_tick = last_ping_tick;
+        uint32_t log_retry_failures = 0;
+        uint32_t metrics_retry_failures = 0;
         int64_t last_loop_time_us = esp_timer_get_time();
         while (true) {
             int64_t now_loop_time_us = esp_timer_get_time();
@@ -544,7 +549,19 @@ static void micro_ros_task(void *arg)
 #if CONFIG_MICRO_ROS_LOG_ENABLE
                 if (embedded_log_init(&node, rcl_mutex)) {
                     log_ready = true;
+                    log_retry_interval = log_retry_interval_min;
+                    log_retry_failures = 0;
                     ESP_LOGI(TAG_TASK, "Embedded log publisher initialized");
+                } else {
+                    log_retry_failures++;
+                    if (log_retry_failures == 1 || (log_retry_failures % 10U) == 0U) {
+                        ESP_LOGW(TAG_TASK,
+                                 "Embedded log init retry failed (%" PRIu32 " attempts)",
+                                 log_retry_failures);
+                    }
+                    log_retry_interval = (log_retry_interval * 2 > retry_interval_max)
+                                             ? retry_interval_max
+                                             : log_retry_interval * 2;
                 }
 #endif
             }
@@ -555,7 +572,19 @@ static void micro_ros_task(void *arg)
                     metrics_ready = true;
                     embedded_metrics_set_xrce_reconnect_count(xrce_reconnect_count);
                     embedded_metrics_set_pub_fail_count(publish_failures_total);
+                    metrics_retry_interval = metrics_retry_interval_min;
+                    metrics_retry_failures = 0;
                     ESP_LOGI(TAG_TASK, "Embedded metrics publisher initialized");
+                } else {
+                    metrics_retry_failures++;
+                    if (metrics_retry_failures == 1 || (metrics_retry_failures % 10U) == 0U) {
+                        ESP_LOGW(TAG_TASK,
+                                 "Embedded metrics init retry failed (%" PRIu32 " attempts)",
+                                 metrics_retry_failures);
+                    }
+                    metrics_retry_interval = (metrics_retry_interval * 2 > retry_interval_max)
+                                                 ? retry_interval_max
+                                                 : metrics_retry_interval * 2;
                 }
             }
 #endif
