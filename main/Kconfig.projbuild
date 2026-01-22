@@ -69,6 +69,58 @@ menu "micro-ROS application settings"
         help
             Enable debug-level logs for periodic publish status output.
 
+    config MICRO_ROS_LOG_ENABLE
+        bool "Enable embedded micro-ROS log publisher"
+        default y
+        help
+            Publish embedded application logs over /embedded/log.
+
+    choice MICRO_ROS_LOG_LEVEL
+        prompt "Embedded log level"
+        default MICRO_ROS_LOG_LEVEL_INFO
+        depends on MICRO_ROS_LOG_ENABLE
+        help
+            Minimum log level forwarded to /embedded/log.
+
+        config MICRO_ROS_LOG_LEVEL_DEBUG
+            bool "DEBUG"
+
+        config MICRO_ROS_LOG_LEVEL_INFO
+            bool "INFO"
+
+        config MICRO_ROS_LOG_LEVEL_WARN
+            bool "WARN"
+
+        config MICRO_ROS_LOG_LEVEL_ERROR
+            bool "ERROR"
+
+        config MICRO_ROS_LOG_LEVEL_FATAL
+            bool "FATAL"
+
+    endchoice
+
+    config MICRO_ROS_LOG_THROTTLE_PER_SEC
+        int "Embedded log throttle (messages/sec, 0=off)"
+        range 0 1000
+        default 20
+        depends on MICRO_ROS_LOG_ENABLE
+        help
+            Maximum number of /embedded/log messages per second.
+
+    config MICRO_ROS_METRICS_ENABLE
+        bool "Enable embedded metrics publisher"
+        default y
+        help
+            Publish embedded performance metrics over /embedded/metrics.
+
+    config MICRO_ROS_METRICS_PERIOD_MS
+        int "Embedded metrics publish period (ms)"
+        range 100 60000
+        default 1000
+        depends on MICRO_ROS_METRICS_ENABLE
+        help
+            Period for publishing embedded metrics in milliseconds.
+
     config MICRO_ROS_PUBLISH_LOG_DIVIDER
         int "Publish log divider (0=off)"
         range 0 1000
