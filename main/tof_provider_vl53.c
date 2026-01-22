@@ -1,6 +1,7 @@
 #include "tof_provider.h"
 
 #include <math.h>
+#include <inttypes.h>
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_err.h"
@@ -14,6 +15,10 @@
 #include "tof_config.h"
 
 static const char *TAG = "TOF_PROVIDER_VL53";
+static const TickType_t k_snapshot_timeout_ticks = pdMS_TO_TICKS(2);
+static const uint32_t k_snapshot_max_spins = 2000;
+static const uint32_t k_snapshot_odd_yield_threshold = 50;
+static const uint8_t k_snapshot_timeout_status = 252;
 
 // État partagé (séquence par capteur).
 // Les writers mettent à jour chaque capteur avec un compteur de séquence.
@@ -45,9 +50,29 @@ static void mark_all_invalid(uint8_t status)
 void tof_provider_snapshot(tof_sample_t out[TOF_COUNT])
 {
     for (int i = 0; i < TOF_COUNT; i++) {
+        TickType_t start = xTaskGetTickCount();
+        uint32_t spins = 0;
+        uint32_t odd_spins = 0;
         while (1) {
             uint32_t seq1 = __atomic_load_n(&g_tof_seq[i], __ATOMIC_ACQUIRE);
             if (seq1 & 1u) {
+                odd_spins++;
+                spins++;
+                if (odd_spins >= k_snapshot_odd_yield_threshold) {
+                    odd_spins = 0;
+                    vTaskDelay(1);
+                }
+                if (spins >= k_snapshot_max_spins ||
+                    (xTaskGetTickCount() - start) > k_snapshot_timeout_ticks) {
+                    ESP_LOGW(TAG, "Snapshot timeout (idx=%d seq=%" PRIu32 ")", i, seq1);
+                    out[i] = (tof_sample_t){
+                        .valid = false,
+                        .status = k_snapshot_timeout_status,
+                        .range_m = NAN,
+                        .seq = seq1,
+                    };
+                    break;
+                }
                 continue;
             }
             tof_sample_t sample = g_tof_samples[i];
@@ -56,6 +81,19 @@ void tof_provider_snapshot(tof_sample_t out[TOF_COUNT])
                 out[i] = sample;
                 break;
             }
+            spins++;
+            if (spins >= k_snapshot_max_spins ||
+                (xTaskGetTickCount() - start) > k_snapshot_timeout_ticks) {
+                ESP_LOGW(TAG, "Snapshot timeout (idx=%d seq=%" PRIu32 ")", i, seq2);
+                out[i] = (tof_sample_t){
+                    .valid = false,
+                    .status = k_snapshot_timeout_status,
+                    .range_m = NAN,
+                    .seq = seq2,
+                };
+                break;
+            }
+            taskYIELD();
         }
     }
 }
