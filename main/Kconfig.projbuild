@@ -114,6 +114,7 @@ menu "ToF hardware configuration"
         default 8
         help
             Number of ToF sensors configured in the system.
+            Sensors are indexed from 0 to TOF_COUNT-1.
 
     config TOF_BIN_ALLOW_DUPLICATES
         bool "Allow duplicate ToF bin indices"
@@ -304,26 +305,6 @@ menu "ToF hardware configuration"
     config TOF_7_BIN_IDX
         int "ToF bin index for sensor 7"
         default 79
-
-    endif
-
-    if TOF_COUNT > 8
-
-    config TOF_8_XSHUT_GPIO
-        int "ToF 8 XSHUT GPIO"
-        default 0
-
-    config TOF_8_INT_GPIO
-        int "ToF 8 INT GPIO"
-        default 0
-
-    config TOF_8_ADDR_7B
-        hex "ToF 8 I2C address (7-bit)"
-        default 0x32
-
-    config TOF_8_BIN_IDX
-        int "ToF bin index for sensor 8"
-        default 0
 
     endif
 
