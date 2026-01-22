@@ -76,6 +76,20 @@ menu "micro-ROS application settings"
         help
             Divider for publish error logs. Set to 0 to disable.
 
+    config MICRO_ROS_SCAN_STEP_ERROR_LOG_DIVIDER
+        int "scan_engine_step error log divider (0=off)"
+        range 0 1000
+        default 50
+        help
+            Divider for scan_engine_step() failure logs. Set to 0 to disable.
+
+    config MICRO_ROS_EXECUTOR_ERROR_LOG_DIVIDER
+        int "rclc_executor_spin_some error log divider (0=off)"
+        range 0 1000
+        default 50
+        help
+            Divider for rclc_executor_spin_some() failure logs. Set to 0 to disable.
+
     config MICRO_ROS_SCAN_ALLOC_GUARD
         bool "Enable allocation guard for scan/publish loop"
         default n

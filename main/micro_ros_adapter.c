@@ -105,6 +105,7 @@ static sensor_msgs__msg__LaserScan scan_msg;
 static scan_config_t scan_cfg;
 static scan_engine_t scan_engine;
 static volatile uint32_t publish_failures = 0;
+static volatile uint32_t scan_step_failures = 0;
 static volatile uint32_t agent_missed_pings = 0;
 static volatile uint32_t congestion_detected = 0;
 static volatile bool publish_error_burst = false;
@@ -206,7 +207,11 @@ static void scan_pub_task(void *arg)
 #endif
         bool step_ok = scan_engine_step(&scan_engine, &scan_msg);
         if (!step_ok) {
-            ESP_LOGE(TAG_TASK, "scan_engine_step() failed");
+            scan_step_failures++;
+            if (CONFIG_MICRO_ROS_SCAN_STEP_ERROR_LOG_DIVIDER > 0 &&
+                (scan_step_failures % CONFIG_MICRO_ROS_SCAN_STEP_ERROR_LOG_DIVIDER) == 0) {
+                ESP_LOGE(TAG_TASK, "scan_engine_step() failed");
+            }
         }
 
         rcl_ret_t pub_rc = RCL_RET_OK;
@@ -419,6 +424,7 @@ static void micro_ros_task(void *arg)
         const TickType_t ping_interval = pdMS_TO_TICKS(1000);
         const uint32_t max_missed_pings = 3;
         uint32_t missed_pings = 0;
+        uint32_t spin_failures = 0;
         TickType_t last_ping_tick = xTaskGetTickCount();
         while (true) {
             if (rcl_mutex != NULL) {
@@ -429,7 +435,11 @@ static void micro_ros_task(void *arg)
                 xSemaphoreGive(rcl_mutex);
             }
             if (spin_ret != RCL_RET_OK) {
-                ESP_LOGE(TAG_TASK, "rclc_executor_spin_some() failed");
+                spin_failures++;
+                if (CONFIG_MICRO_ROS_EXECUTOR_ERROR_LOG_DIVIDER > 0 &&
+                    (spin_failures % CONFIG_MICRO_ROS_EXECUTOR_ERROR_LOG_DIVIDER) == 0) {
+                    ESP_LOGE(TAG_TASK, "rclc_executor_spin_some() failed");
+                }
                 rcl_reset_error();
             }
             TickType_t now_tick = xTaskGetTickCount();
