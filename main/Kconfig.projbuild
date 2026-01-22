@@ -44,6 +44,13 @@ menu "micro-ROS application settings"
             Enable only if the transport can handle acknowledgements without
             causing XRCE backpressure.
 
+    config MICRO_ROS_QOS_DEPTH
+        int "LaserScan QoS depth"
+        range 1 1000
+        default 1
+        help
+            Depth for LaserScan QoS when using KEEP_LAST. Must be >= 1.
+
     config MICRO_ROS_SCAN_BINS
         int "LaserScan number of bins"
         default 84

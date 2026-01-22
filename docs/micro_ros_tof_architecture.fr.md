@@ -60,49 +60,50 @@ app_main
 ## 2) Configuration/Kconfig critique
 
 ### micro-ROS (publishing & scheduling)
-- `CONFIG_MICRO_ROS_DOMAIN_ID`: domaine micro-ROS pour la découverte des nodes.【F:main/Kconfig.projbuild†L12-L18】
-- `CONFIG_MICRO_ROS_NODE_NAME`: nom du node publishant le LaserScan.【F:main/Kconfig.projbuild†L20-L26】
-- `CONFIG_MICRO_ROS_TOPIC_NAME`: topic LaserScan publié.【F:main/Kconfig.projbuild†L28-L34】
-- `CONFIG_MICRO_ROS_TIMER_PERIOD_MS`: période de publication (ms).【F:main/Kconfig.projbuild†L36-L42】
-- `CONFIG_MICRO_ROS_QOS_RELIABLE`: bascule QoS RELIABLE vs BEST_EFFORT.【F:main/Kconfig.projbuild†L44-L51】
-- `CONFIG_MICRO_ROS_SCAN_BINS`: nombre de bins LaserScan (résolution angulaire).【F:main/Kconfig.projbuild†L53-L58】
-- `CONFIG_MICRO_ROS_SCAN_FRAME_ID`: frame_id du LaserScan.【F:main/Kconfig.projbuild†L60-L65】
+- `CONFIG_MICRO_ROS_DOMAIN_ID`: domaine micro-ROS pour la découverte des nodes.【F:main/Kconfig.projbuild†L15-L19】
+- `CONFIG_MICRO_ROS_NODE_NAME`: nom du node publishant le LaserScan.【F:main/Kconfig.projbuild†L21-L25】
+- `CONFIG_MICRO_ROS_TOPIC_NAME`: topic LaserScan publié.【F:main/Kconfig.projbuild†L27-L31】
+- `CONFIG_MICRO_ROS_TIMER_PERIOD_MS`: période de publication (ms).【F:main/Kconfig.projbuild†L33-L37】
+- `CONFIG_MICRO_ROS_QOS_RELIABLE`: bascule QoS RELIABLE vs BEST_EFFORT.【F:main/Kconfig.projbuild†L39-L45】
+- `CONFIG_MICRO_ROS_QOS_DEPTH`: profondeur QoS (KEEP_LAST) pour le LaserScan.【F:main/Kconfig.projbuild†L47-L52】
+- `CONFIG_MICRO_ROS_SCAN_BINS`: nombre de bins LaserScan (résolution angulaire).【F:main/Kconfig.projbuild†L54-L58】
+- `CONFIG_MICRO_ROS_SCAN_FRAME_ID`: frame_id du LaserScan.【F:main/Kconfig.projbuild†L60-L64】
 - Logs/diagnostics :
   - `CONFIG_MICRO_ROS_PUBLISH_LOG_DIVIDER`, `CONFIG_MICRO_ROS_PUBLISH_ERROR_LOG_DIVIDER`,
     `CONFIG_MICRO_ROS_SCAN_STEP_ERROR_LOG_DIVIDER`, `CONFIG_MICRO_ROS_EXECUTOR_ERROR_LOG_DIVIDER`.
-    【F:main/Kconfig.projbuild†L69-L96】
+    【F:main/Kconfig.projbuild†L72-L98】
 - Gestion mémoire scan :
   - `CONFIG_MICRO_ROS_SCAN_ALLOC_GUARD`, `CONFIG_MICRO_ROS_SCAN_BUILDER_ALLOC_MALLOC`.
-    【F:main/Kconfig.projbuild†L97-L112】
+    【F:main/Kconfig.projbuild†L100-L113】
 
 ### ToF (I2C, GPIOs, mapping)
-- `CONFIG_TOF_COUNT`: nombre de capteurs, indexés de 0 à N-1.【F:main/Kconfig.projbuild†L121-L128】
+- `CONFIG_TOF_COUNT`: nombre de capteurs, indexés de 0 à N-1.【F:main/Kconfig.projbuild†L140-L146】
 - `CONFIG_TOF_BIN_ALLOW_DUPLICATES`: autorise ou non les collisions de bins.
-  (désactivé = détection d’indices dupliqués dans `scan_engine`).【F:main/Kconfig.projbuild†L130-L135】【F:main/scan_engine.c†L37-L63】
+  (désactivé = détection d’indices dupliqués dans `scan_engine`).【F:main/Kconfig.projbuild†L148-L152】【F:main/scan_engine.c†L37-L63】
 - Bus I2C :
   - `CONFIG_TOF_I2C_SDA_GPIO`, `CONFIG_TOF_I2C_SCL_GPIO`, `CONFIG_TOF_I2C_FREQ_HZ`.
-    【F:main/Kconfig.projbuild†L137-L152】
+    【F:main/Kconfig.projbuild†L154-L170】
 - Timing/IRQ :
   - `CONFIG_TOF_TIMING_BUDGET_US`, `CONFIG_TOF_GPIO_READY_TIMEOUT_MS`.
-    【F:main/Kconfig.projbuild†L154-L164】
+    【F:main/Kconfig.projbuild†L172-L182】
 - Par capteur (`TOF_0_*`, `TOF_1_*`, …) :
   - `*_XSHUT_GPIO`, `*_INT_GPIO`, `*_ADDR_7B`, `*_BIN_IDX`.
-    【F:main/Kconfig.projbuild†L166-L311】
+    【F:main/Kconfig.projbuild†L184-L336】
 
 ### LED statut micro-ROS
-- `CONFIG_MICRO_ROS_STATUS_LED_ENABLE`: active l’indicateur d’état LED.【F:main/Kconfig.projbuild†L113-L118】
-- `CONFIG_MICRO_ROS_STATUS_LED_GPIO`: GPIO de la LED.【F:main/Kconfig.projbuild†L120-L126】
-- `CONFIG_MICRO_ROS_STATUS_LED_BRIGHTNESS`: niveau de luminosité (0-255).【F:main/Kconfig.projbuild†L128-L135】
+- `CONFIG_MICRO_ROS_STATUS_LED_ENABLE`: active l’indicateur d’état LED.【F:main/Kconfig.projbuild†L115-L119】
+- `CONFIG_MICRO_ROS_STATUS_LED_GPIO`: GPIO de la LED.【F:main/Kconfig.projbuild†L121-L126】
+- `CONFIG_MICRO_ROS_STATUS_LED_BRIGHTNESS`: niveau de luminosité (0-255).【F:main/Kconfig.projbuild†L128-L134】
 
 ### Sélection du provider ToF
 - `CONFIG_TOF_PROVIDER_MOCK`: sélectionne le provider mock (sinon VL53L0X).
   Utilisé dans le CMake pour choisir la bonne implémentation à la compilation.
-  【F:main/Kconfig.projbuild†L313-L321】【F:main/CMakeLists.txt†L10-L16】
+  【F:main/Kconfig.projbuild†L342-L349】【F:main/CMakeLists.txt†L10-L16】
 
 ## 3) QoS & timing ROS
 
 - **QoS LaserScan**
-  - KEEP_LAST depth=1.
+  - KEEP_LAST depth=`CONFIG_MICRO_ROS_QOS_DEPTH`.
   - RELIABLE ou BEST_EFFORT selon `CONFIG_MICRO_ROS_QOS_RELIABLE`.
   - DURABILITY = VOLATILE pour éviter la pression XRCE.
   【F:main/micro_ros_adapter.c†L342-L367】
