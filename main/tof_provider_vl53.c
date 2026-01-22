@@ -21,6 +21,11 @@ static const uint32_t k_snapshot_odd_yield_threshold = 50;
 static const uint8_t k_snapshot_timeout_status = 252;
 static const TickType_t k_snapshot_log_interval_ticks = pdMS_TO_TICKS(1000);
 
+#if defined(__GNUC__)
+__attribute__((weak)) VL53L0X_Error VL53L0X_StopMeasurement(VL53L0X_DEV Dev);
+__attribute__((weak)) esp_err_t vl53l0x_i2c_master_deinit(void);
+#endif
+
 // État partagé (séquence par capteur).
 // Les writers mettent à jour chaque capteur avec un compteur de séquence.
 // Le snapshot lit chaque capteur sans verrou via un double-check de séquence.
@@ -58,6 +63,32 @@ static void mark_all_invalid(uint8_t status)
 {
     for (int i = 0; i < TOF_COUNT; i++) {
         update_one(i, false, status, NAN);
+    }
+}
+
+static void stop_all_measurements(vl53l0x_dev_t devs[TOF_COUNT], int started)
+{
+    if (VL53L0X_StopMeasurement == NULL) {
+        return;
+    }
+
+    for (int i = 0; i < started; i++) {
+        VL53L0X_Error st = VL53L0X_StopMeasurement(&devs[i].st);
+        if (st != VL53L0X_ERROR_NONE) {
+            ESP_LOGW(TAG, "StopMeasurement dev[%d] failed: %d", i, (int)st);
+        }
+    }
+}
+
+static void deinit_i2c_bus(void)
+{
+    if (vl53l0x_i2c_master_deinit == NULL) {
+        return;
+    }
+
+    esp_err_t err = vl53l0x_i2c_master_deinit();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "I2C deinit failed: %s", esp_err_to_name(err));
     }
 }
 
@@ -155,6 +186,8 @@ void tof_provider_init(void)
     SemaphoreHandle_t i2c_mutex = NULL;
     TaskHandle_t task_handles[TOF_COUNT] = {0};
     bool init_ok = false;
+    bool i2c_initialized = false;
+    int started_devices = 0;
 
     ESP_LOGI(TAG, "Init I2C bus...");
     esp_err_t err = vl53l0x_i2c_master_init(bus_cfg->sda_gpio, bus_cfg->scl_gpio,
@@ -163,6 +196,7 @@ void tof_provider_init(void)
         ESP_LOGE(TAG, "I2C init failed: %s", esp_err_to_name(err));
         goto cleanup;
     }
+    i2c_initialized = true;
 
     // Slots pour assignation d’adresses via XSHUT
     vl53l0x_slot_t slots[TOF_COUNT];
@@ -204,6 +238,7 @@ void tof_provider_init(void)
             ESP_LOGE(TAG, "StartMeasurement dev[%d] failed: %d", i, (int)st);
             goto cleanup;
         }
+        started_devices++;
 
         // Init état
         update_one(i, false, 255, NAN);
@@ -237,6 +272,9 @@ void tof_provider_init(void)
 
 cleanup:
     if (!init_ok) {
+        if (started_devices > 0) {
+            stop_all_measurements(devs, started_devices);
+        }
         for (int i = 0; i < TOF_COUNT; i++) {
             if (task_handles[i] != NULL) {
                 vTaskDelete(task_handles[i]);
@@ -246,6 +284,9 @@ cleanup:
         if (i2c_mutex != NULL) {
             vSemaphoreDelete(i2c_mutex);
             i2c_mutex = NULL;
+        }
+        if (i2c_initialized) {
+            deinit_i2c_bus();
         }
         mark_all_invalid(255);
     }
