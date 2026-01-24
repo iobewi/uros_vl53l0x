@@ -17,5 +17,16 @@
 			]
 		}
 	},
-	"runArgs": ["--privileged"]
+    "runArgs": [
+        "--privileged",
+        "--network=host"
+    ],
+    "mounts": [
+        "source=claude-config,target=/root/.claude,type=volume"
+    ],
+    "postCreateCommand": "echo '✅ ESP-IDF + Claude Code ready! Run \"claude config\" for first-time OAuth setup, then \"claude\" to start.'",
+    "remoteEnv": {
+        "ANTHROPIC_MODEL": "claude-sonnet-4-5-20250929"
+    }
+    
 }

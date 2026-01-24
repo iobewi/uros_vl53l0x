@@ -22,6 +22,15 @@ RUN apt-get update -y && \
 
 RUN echo "source /opt/esp/idf/export.sh > /dev/null 2>&1" >> ~/.bashrc
 
+# Installer Claude Code (binaire natif) pour l'utilisateur root
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Ajouter Claude Code au PATH
+ENV PATH="/root/.local/bin:${PATH}"
+
+# Aussi sourcer ESP-IDF et ajouter Claude au PATH pour les shells interactifs
+RUN echo 'export PATH="/root/.local/bin:${PATH}"' >> ~/.bashrc
+
 ENTRYPOINT [ "/opt/esp/entrypoint.sh" ]
 
 CMD ["/bin/bash", "-c"]
