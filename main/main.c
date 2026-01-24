@@ -7,7 +7,7 @@
 #include <rmw_microros/rmw_microros.h>
 
 #include "tof_provider.h"
-#include "uros_app.h"
+#include "uros_app_scan.h"
 
 static const char *TAG_MAIN = "MAIN";
 
@@ -43,7 +43,7 @@ void app_main(void)
     tof_provider_init();
 
     // Start micro-ROS app (LaserScan publisher)
-    if (!uros_app_start()) {
+    if (!uros_app_scan_start()) {
         ESP_LOGE(TAG_MAIN, "Failed to start micro-ROS app task");
         return;
     }

@@ -19,8 +19,8 @@ endif()
 idf_component_register(
     SRCS
         "main.c"
-        "micro_ros_adapter.c"
-        "uros_app.c"
+        "uros_core.c"
+        "uros_app_scan.c"
         "led_status.c"
         "scan_builder.c"
         "scan_engine.c"
